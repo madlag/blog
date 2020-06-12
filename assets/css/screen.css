@@ -304,9 +304,15 @@ span.post-read-more a:hover {
     margin-right: 5px;
 }
 
+/*font-style: bold;
+//font-weight: 800;
+    font-family: Righteous; */
+
 .mainheading h1.sitetitle {
-    font-family: Righteous;
+    font-family: Merriweather;
+    font-style: bolder;
 }
+
 
 .mainheading h1.posttitle {
     font-weight: 700;
