@@ -121,6 +121,15 @@ section.recent-posts {
     overflow: hidden;
 }
 
+.maxthumb2 {
+    max-height: 300px;
+    overflow: hidden;
+    background-position: center center;
+    background-repeat: no-repeat;
+    overflow: hidden;
+    background-size: cover;
+}
+
 .listfeaturedtag .card,
 .card-footer {
     border: 0;
@@ -780,7 +789,7 @@ iframe {
         padding: 0;
         height: 350px;
         border-radius: 0;
-        background-image: url(../images/jumbotron.jpg);
+/*        background-image: url(../images/jumbotron.jpg); */
         background-size: cover;
     }
 
@@ -798,7 +807,7 @@ iframe {
     margin-top: 3rem;
     padding: 0;
     border-radius: 0;
-    background-image: url(../images/jumbotron.jpg);
+/*    background-image: url(../images/jumbotron.jpg); */
     background-size: cover;
 }
 
