@@ -134,12 +134,14 @@ figure.figleft {
     float: left;
     margin-right: 30px;
     margin-left: -100px;
+    max-width: 60%;
 }
 
 figure.figright {
     float: right;
     margin-left: 30px;
     margin-right: -100px;
+    max-width: 60%;
 }
 
 figure.figcenter {

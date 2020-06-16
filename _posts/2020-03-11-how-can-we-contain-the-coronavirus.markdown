@@ -20,17 +20,19 @@ Yes, for the elderly. You can consider it to be something like **10x deadlier th
 * 22% for 80+
 ([source](https://www.worldometers.info/coronavirus/coronavirus-age-sex-demographics/))
 
-So, yes, you are not taking precautions for yourself, but** for your parents and for your grandparents.**
+So, yes, you are not taking precautions for yourself, but **for your parents and for your grandparents**.
 
 #### Is it more contagious than the flu?
 
-It’s **very** **contagious**. Much more than the flu.
+It’s **very contagious**. Much more than the flu.
 
 The number of people that are currently **dying in Italy is doubling every 2.2 days**. Yes, you read that correctly. In one week, the death count multiplies roughly by 9. As well as the next week. Check out Italy for yourself: (all data from this post are from [ECDC](https://www.ecdc.europa.eu/) ):
 
 Tuesday, Feb 25 : 6  
 Tuesday, Mar 03 : 52 (x 8.6)  
-Tuesday, Mar 10 : 464 (x 8.9)The only explanation for this is that the** coronavirus is propagating at a very fast pace.** It would be interesting to know why, and how, but you don’t really need to.** The numbers are: it’s terribly contagious.**
+Tuesday, Mar 10 : 464 (x 8.9)
+
+The only explanation for this is that the **coronavirus is propagating at a very fast pace**. It would be interesting to know why, and how, but you don’t really need to. The numbers are here: **it’s terribly contagious.**
 
 **Do not assume anything about what is safe. Avoid contact, period.**
 
@@ -44,7 +46,11 @@ Here is the count of deaths for a few countries, in a somewhat special chart tha
 
 ([source code here](https://github.com/madlag/coronavirus_study/blob/master/notebooks/Coronavirus_by_country.ipynb), it will be updated each day)
 
-![](/assets/images/mdm/1*8rsbSctG7hIByPTWBfjrTQ.png)For those that are not familiar with maths, don’t worry, we’ll keep it simple.
+<figure class="figcenter">
+<img alt="Deaths by country over time" src="/assets/images/posts/coronavirus1/DeathByCountry_markers.png">
+</figure>
+
+For those that are not familiar with maths, don’t worry, we’ll keep it simple.
 
 The vertical axis is logarithmic. That’s a big word to say that each time you go up one unit, the value is multiplied by 10. Look on the left side: 10⁰ means 1, 10¹ means 10, 10² means 100, 10³ means 1000, etc.
 
@@ -54,7 +60,7 @@ We are using it because on such a chart, **an epidemic should initially look lik
 
 #### What can we say about Italy?
 
-The death count in **Italy **is** exactly following the dotted line.**
+The death count in **Italy is exactly following the dotted line.**
 
 **No bending. No sign of improvement.**
 
@@ -64,7 +70,7 @@ So maybe things are improving right now. But for the same reason (lag) the curre
 
 #### But Italy made mistakes initially, it won’t happen to my country
 
-**Implausible.** As you can see on the graph, the** exact same trend is observed in France and Spain**, with a delay of 9 days. The only countries that *seem *to fare better now are:
+**Implausible.** As you can see on the graph, the **exact same trend is observed in France and Spain**, with a delay of 9 days. The only countries that *seem* to fare better now are:
 
 **Much better:**
 
@@ -75,6 +81,7 @@ So maybe things are improving right now. But for the same reason (lag) the curre
 * Germany, but Germany seems to not report cases with co-morbidities
 * USA, but when checking the “cases” I realized that cases are growing at the 2.2 days doubling rate, so it’s implausible that on another side deaths are not growing at the same rate.
 * Iran (same remark)
+
 #### But taking soft measures is already slowing down the spread.
 
 **Wrong**. Look at the graph. Italy took some serious measures after an initial delay. The curve is still a straight line. No visible effect. And the same is true for France or Spain.
@@ -97,11 +104,13 @@ If you act too late, your hospitals will be [overwhelmed](https://www.theguardia
 
 The reason? The virus is way too contagious. So the spike will naturally be ‘peaky’.
 
-![](/assets/images/mdm/1*2dzy7wKfCGHqaR6eWPV6ug.png)#### What can I do?
+![](/assets/images/posts/coronavirus1/flatten_the_curve.png)
+
+#### What can I do?
 
 Ask for your local authority to act now, and enforce a **total lockdown**. This is not something where people are going to work or just avoiding going out to eat in the evening.
 
-**China locked down Hubei when there were only 50 deaths or so.** They ended with 3000 deaths. And their lockdown was militarily enforced. Recall the images of a deserted city. Do you think your country will fare better with a partially enforced lock-down? You are wrong. **If your country has more than 50 deaths now, you will have more than 3000 deaths in the end. **There are already 10–100x more cases that are just invisible in your country.
+**China locked down Hubei when there were only 50 deaths or so.** They ended with 3000 deaths. And their lockdown was militarily enforced. Recall the images of a deserted city. Do you think your country will fare better with a partially enforced lock-down? You are wrong. **If your country has more than 50 deaths now, you will have more than 3000 deaths in the end.** There are already 10–100x more cases that are just invisible in your country.
 
 **A FULL lockdown. Everybody staying at home. For all countries. For at least one month. Financially helping individuals who cannot afford not to work. Helping elderly people that are at home with providing them with food and avoiding all contact. With these measures this will soon be over, or almost. This is our best shot at stopping this.**
 

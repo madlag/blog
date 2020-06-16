@@ -7,7 +7,7 @@ author: francois
 featured: true
 tags: [ AI, NLP]
 categories: []
-image: assets/images/mdm/1*0b-KUkO2e22UPpPKrRi9PQ.png
+image: assets/images/posts/sparse2/MicroChip.png
 ---
 
 Welcome back for this series on Sparse Neural Networks. In case you have not read our first introductory episode, [here it is](https://link.medium.com/In4bINyeO3).
@@ -17,7 +17,7 @@ I told you last time that **sparsity would a major topic in 2020**, and it looks
 It’s quite a bold move: if you consider the time it takes to design and produce a new GPU line, they made this decision at least 2 years ago, and you need some vista to understand that it would be an important trend 2 years later.
 
 <figure class="figleft">
-<img alt="André Ampère" src="/assets/images/mdm/1*M1ky4jno_MmGg5eR3tgGyg.png">
+<img alt="André Ampère" src="/assets/images/posts/sparse2/Andre_Ampere_Wikipedia.png">
 <figcaption>André Ampère, 1825 (from Wikipedia)</figcaption>
 </figure>
 
@@ -43,7 +43,7 @@ That’s because sequential performance is mostly limited by **operating** **fre
 * the amount of **heat** that is created by the chips, a function of voltage and frequency. First, a **transistor** emits heat when **changing state**, so proportionally to frequency. Second, **the higher the frequency, the higher the voltage** you need. So in the end **emitted heat is more than linear in the frequency**, not something ideal.
 
 <figure class="figright">
-<img alt="Chip layout" src="/assets/images/mdm/1*0b-KUkO2e22UPpPKrRi9PQ.png">
+<img alt="Chip layout" src="/assets/images/posts/sparse2/Microchip.png">
 <figcaption>From <a href="https://youtu.be/Knd-U-avG0c?t=109">https://youtu.be/Knd-U-avG0c</a></figcaption>
 </figure>
 
@@ -71,7 +71,7 @@ If you have a lot of computing power available, you have to feed it with data. M
 
 
 <figure class="figleft">
-<img alt="Traffic jam" src="/assets/images/mdm/1*Fruof2lsq_v7hdrXZUhRjg.png">
+<img alt="Traffic jam" src="/assets/images/posts/sparse2/tan-kaninthanond-VEVfbQtyB8s-unsplash-cut.png">
 <figcaption>From <a href="https://unsplash.com/photos/VEVfbQtyB8s">https://unsplash.com/photos/VEVfbQtyB8s</a></figcaption>
 </figure>
 
@@ -91,7 +91,12 @@ A lot of the complexities of GPU architectures exist to overcome those bottlenec
 
 **You don’t get the 1000s of cores in a GPU in a single bag: they are grouped at multiple levels.** We’ll take the example of the new Ampere A100. Numbers change according to the generation, but the general principles are slowly evolving. (Numbers below come mostly from the [Nvidia blog](https://devblogs.nvidia.com/nvidia-ampere-architecture-in-depth/))
 
-![](/assets/images/mdm/1*i60_7GqIKxjgunaXe7CiCw.png)*The GA100 streaming multiprocessor (SM)*At the lower level you have a Streaming Processor (SP). He is part of a group of 16 SP which computes the same sequence of instructions at the same time.
+<figure class="figcenter">
+<img alt="The GA100 streaming multiprocessor (SM)" src="/assets/images/posts/sparse2/New_GA100_SM_with_Uber_Tensor_Core.png">
+<figcaption>The GA100 streaming multiprocessor (SM)</figcaption>
+</figure>
+
+At the lower level you have a Streaming Processor (SP). He is part of a group of 16 SP which computes the same sequence of instructions at the same time.
 
 (To be more precise, you have 16 FP32 cores, 8 FP64 cores, 16 INT32 cores, 1 Tensor Core, and 1 texture unit per group. More on tensor cores later)
 
@@ -107,7 +112,12 @@ If you compare the A100 structure with the Volta V100, these structural numbers 
 
 You can see in the comparison below that all those numbers varied significantly with time, in search of the best performance :
 
-![](/assets/images/mdm/1*MmPCD_ypvtHDhwAGUZhqHQ.png)#### Why so many levels? Performance
+
+<figure class="figcenter">
+<img alt="Comparison of Nvidia Tesla GPUs" src="/assets/images/posts/sparse2/ComparisonOfTeslaGPUs.png">
+</figure>
+
+#### Why so many levels? Performance
 
 **The main reason is of course to improve real-life performance. And in real life, you don’t have a single task to be done.**
 
@@ -147,7 +157,7 @@ First, **you have to write some kernels,** using the primitives you get. It’s 
 
 But for some algorithms, like sorting, it can be a lot trickier to have something efficient, because you will have some issues using all the cores all the time.
 
-#### **Grids and performance**
+#### Grids and performance
 
 That’s because the kernel is only a small part of the problem, the other is the way you distribute the work among cores. And the performance gains are often made more on the distribution than on an optimal kernel.
 
@@ -197,18 +207,38 @@ You can see them as ultra-specialized units, with some significant dedicated sil
 
 And this means a lot in terms of speed, especially quantized networks inference :
 
-![](/assets/images/mdm/1*e7SMvK3WdZmz32poFUQaJA.gif)From <https://youtu.be/yyR0ZoCeBO8?t=19>For training, it was a bit more difficult on Volta, as working with FP16 was possible but a bit tricky (the 8x gain in speed was indeed tempting).
+
+<figure class="figcenter">
+<img alt="Tensor Core Units" src="/assets/images/posts/sparse2/tensor_cores.gif">
+<figcaption>From <a href="https://youtu.be/yyR0ZoCeBO8?t=19">https://youtu.be/yyR0ZoCeBO8</a></figcaption>
+</figure>
+
+
+For training, it was a bit more difficult on Volta, as working with FP16 was possible but a bit tricky (the 8x gain in speed was indeed tempting).
 
 **But now with Ampere, Nvidia announces support for FP32 and even FP64 for Tensor Cores.** **And it looks like FP32 is now 20 times faster than on Volta with sparsity, and 10 times without sparsity.** And this is for training and inference because it’s just big tensor ops, nothing special here.
 
+
+<figure class="figcenter">
+<img alt="Tensor Core Units" src="/assets/images/posts/sparse2/Sparse-Tensor-Core-Quad-White.png">
+<figcaption>From <a href="https://youtu.be/yyR0ZoCeBO8?t=19">https://youtu.be/yyR0ZoCeBO8</a></figcaption>
+</figure>
+
 It looks like we’ll be getting some nice toys to play with.
 
-![](/assets/images/mdm/1*rBrF53VkNYC5gL6YJExXxQ.png)#### Sparsity
+
+#### Sparsity
 
 From the [Nvidia Blog](https://devblogs.nvidia.com/nvidia-ampere-architecture-in-depth/#) :
 
 
-> NVIDIA has developed a simple and universal recipe for sparsifying deep neural networks for inference using this 2:4 structured sparsity pattern.![](/assets/images/mdm/1*xq_MGzOOGVazlgAT8766uA.png)If you have read the first part of this series, you should feel at home.
+> NVIDIA has developed a simple and universal recipe for sparsifying deep neural networks for inference using this 2:4 structured sparsity pattern.
+
+<figure class="figcenter">
+<img alt="FineGrain Structured Sparsity" src="/assets/images/posts/sparse2/Fine-Grain-Structured-Sparsity.png">
+</figure>
+
+If you have read the first part of this series, you should feel at home.
 
 **The idea** is simple: maybe using a fully dense matrix is not useful. And what Nvidia is claiming is that it’s true, **keeping only half the weights has a minimal impact on precision.**
 

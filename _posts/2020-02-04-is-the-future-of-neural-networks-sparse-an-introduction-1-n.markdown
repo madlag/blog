@@ -7,11 +7,11 @@ author: francois
 featured: true
 tags: [ AI, NLP]
 categories: []
-image: assets/images/mdm/sparse_1.png
+image: assets/images/posts/sparse1/sparse_1_cover.png
 ---
 
 <figure class="figcenter">
-<img class="large" alt="Sparse Matrix" src="/assets/images/mdm/1*7e9p9imPoRBYh5WYF3FFrQ.png">
+<img class="large" alt="Sparse Matrix" src="/assets/images/posts/sparse1/header.png">
 <figcaption>TLDR:Yes</figcaption>
 </figure>
  
@@ -29,7 +29,7 @@ I was talking about it with the outstanding [Hugging Face](https://huggingface.c
 A ***sparse*** matrix is just a matrix with some zeros. Usually, a lot of them. So every place you are using a ***dense matrix***, in a linear layer, for example, you could be using a sparse one.
 
 <figure class="figcenter">
-<img class="large" alt="Matrices with increasing sparsity" src="/assets/images/mdm/1*tf99LCAMrO70WAO4tkgFBw.png">
+<img class="large" alt="Matrices with increasing sparsity" src="/assets/images/posts/sparse1/sparse.png">
 <figcaption>Matrices with increasing sparsity</figcaption>
 </figure>
 
@@ -46,7 +46,7 @@ The first researchers/engineers to use sparse matrices were [Finite Elements](ht
 
 
 <figure class="figcenter">
-<img class="large" alt="A 2D mesh (roof of Omni Coliseum, Atlanta) and its finite element matrix" src="/assets/images/mdm/1*IvRIZEjC7kgUBuozUFlSng.png">
+<img class="large" alt="A 2D mesh (roof of Omni Coliseum, Atlanta) and its finite element matrix" src="/assets/images/posts/sparse1/finite_elements_composite2.png">
 <figcaption>A <a href="https://www.cise.ufl.edu/research/sparse/matrices/HB/bcsstk14.html">2D mesh</a> (roof of Omni Coliseum, Atlanta) and its finite element matrix</figcaption>
 </figure>
 
@@ -62,7 +62,7 @@ This last sentence sums it up: you need non-zero values in the matrix when two d
 We have actually a very good, and famous, example of a successful trip to sparse-land: **convolutional layers**.
 
 <figure class="figcenter">
-<img class="large" alt="Learned convolutional filters" src="/assets/images/mdm/1*3WLh11vam1ktq7kWJ9aKpg.jpeg">
+<img class="large" alt="Learned convolutional filters" src="/assets/images/posts/sparse1/convolutions.jpeg">
 <figcaption>Learned convolutional filters (from <a href="http://cs231n.github.io/convolutional-networks">http://cs231n.github.io/convolutional-networks</a>)</figcaption>
 </figure>
 
@@ -86,7 +86,7 @@ Convolutions are already an efficient form of sparsity, so you could try to make
 And those are getting bigger and bigger. We have greatly exceeded the 1 billion parameters in 2019, and it’s not stopping here. The cost to train and to use those networks is getting unpractical, so every method to reduce their size will be welcome.
 
 <figure class="figcenter">
-<img alt="From Nvidia blog" src="/assets/images/mdm/0*m3oTlwLmwuXuBCVg.jpg">
+<img alt="From Nvidia blog" src="/assets/images/posts/sparse1/Nvidia-Blog-Figure-1-Training.jpg">
 <figcaption style="margin-top:20px">From <a href="https://devblogs.nvidia.com/training-bert-with-gpus">https://devblogs.nvidia.com/training-bert-with-gpus</a>)</figcaption>
 </figure>
 
@@ -105,7 +105,7 @@ So the **OpenAI** **announcement** on their block sparse tools is **very** **goo
 
 
 <figure class="figcenter">
-<img alt="From OpenAI blocksparse paper" src="/assets/images/mdm/1*qXMoK7emiT7J6CA_3O29_A.png">
+<img alt="From OpenAI blocksparse paper" src="/assets/images/posts/sparse1/openai_speedup.png">
 <figcaption>From OpenAI <a href="https://d4mucfpksywv.cloudfront.net/blocksparse/blocksparsepaper.pdf">blocksparse paper</a></figcaption>
 </figure>
 
@@ -115,7 +115,7 @@ The magic keyword here is “**block**”. **It’s hard to implement general sp
 
 
 <figure class="figcenter">
-<img alt="A 8-block-sparse matrix" src="/assets/images/mdm/1*rHFMCfJ8Td-vhJi0e0zAQw.png">
+<img alt="A 8-block-sparse matrix" src="/assets/images/posts/sparse1/block_sparse.png">
 <figcaption>A 8-block-sparse matrix</figcaption>
 </figure>
 
@@ -125,7 +125,7 @@ But at least we can play with large high sparsity matrices, and the block constr
 
 
 <figure class="figcenter">
-<img alt="Band matrix" src="/assets/images/mdm/1*zknKSiBQpsppvjDJFIFbqw.png">
+<img alt="Band matrix" src="/assets/images/posts/sparse1/band_matrix.png">
 <figcaption>Band matrix</figcaption>
 </figure>
 
