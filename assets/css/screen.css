@@ -142,6 +142,19 @@ figure.figright {
     margin-right: -100px;
 }
 
+figure.figcenter {
+    display:block;
+}
+
+figure.figcenter img.large {
+    width: 100%;
+}
+
+figure.figcenter img {
+    margin-right: auto;
+    margin-left: auto;
+    display: block;
+}
 
 figcaption {
     display: block;
@@ -346,6 +359,13 @@ span.post-read-more a:hover {
 .mainheading h1.posttitle {
     font-weight: 700;
     margin-bottom: 1rem;
+}
+
+.mainheading h2.postsubtitle {
+    margin-bottom: 1rem;
+    font-size: 24px;
+    font-weight: 300;
+    color: rgba(117, 117, 117, 1);
 }
 
 .footer {

@@ -10,30 +10,48 @@ categories: []
 image: assets/images/mdm/sparse_1.png
 ---
 
-#### From principles to real-world library support.
-
-![](/assets/images/mdm/1*7e9p9imPoRBYh5WYF3FFrQ.png)TLDR: Yes#### **Hi, I am François Lagunas.**
+<figure class="figcenter">
+<img class="large" alt="Sparse Matrix" src="/assets/images/mdm/1*7e9p9imPoRBYh5WYF3FFrQ.png">
+<figcaption>TLDR:Yes</figcaption>
+</figure>
+ 
+**Hi, I am François Lagunas.**
 
 I am doing Machine Learning research, and I have been working for the last months on using sparse matrices, especially in Transformers. The recent [**announcement**](https://openai.com/blog/openai-pytorch/) that **OpenAI** is porting its [**block sparse toolbox**](https://openai.com/blog/block-sparse-gpu-kernels/) in **PyTorch** is really big news:
 
 
-> “We are in the process of writing PyTorch bindings for our highly-optimized blocksparse kernels, and will open-source those bindings in upcoming months”I was talking about it with the outstanding [Hugging Face](https://huggingface.co/) team, (I am one of their early investors), and I wanted to share with you my excitement!
+> “We are in the process of writing PyTorch bindings for our highly-optimized blocksparse kernels, and will open-source those bindings in upcoming months.”
+
+I was talking about it with the outstanding [Hugging Face](https://huggingface.co/) team, (I am one of their early investors), and I wanted to share with you my excitement!
 
 ### What is a Sparse Matrix?
 
 A ***sparse*** matrix is just a matrix with some zeros. Usually, a lot of them. So every place you are using a ***dense matrix***, in a linear layer, for example, you could be using a sparse one.
 
-![](/assets/images/mdm/1*tf99LCAMrO70WAO4tkgFBw.png)Matrices with increasing sparsityThe ***sparsity*** of the matrix is the fraction of zeros against the size of the matrix
+<figure class="figcenter">
+<img class="large" alt="Matrices with increasing sparsity" src="/assets/images/mdm/1*tf99LCAMrO70WAO4tkgFBw.png">
+<figcaption>Matrices with increasing sparsity</figcaption>
+</figure>
+
+
+The ***sparsity*** of the matrix is the fraction of zeros against the size of the matrix
 
 **The pros?** If you have a lot of zeros, you don’t have to compute some multiplications, and you don’t have to store them. So you ***may*** gain on size and speed, for training and inference (more on this today).
 
-**The cons? **Of course, having all these zeros will probably have an impact on network accuracy/performance. But to what extent? You may be surprised.
+**The cons?** Of course, having all these zeros will probably have an impact on network accuracy/performance. But to what extent? You may be surprised.
 
 ### Where are they from?
 
 The first researchers/engineers to use sparse matrices were [Finite Elements](https://en.wikipedia.org/wiki/Finite_element_method) users.
 
-![](/assets/images/mdm/1*IvRIZEjC7kgUBuozUFlSng.png)A 2D mesh (roof of Omni Coliseum, Atlanta) and its finite element matrix ([source](https://www.cise.ufl.edu/research/sparse/matrices/HB/bcsstk14.html)).When you have to deal with large physical simulations, you get a large graph of interconnected vertices.
+
+<figure class="figcenter">
+<img class="large" alt="A 2D mesh (roof of Omni Coliseum, Atlanta) and its finite element matrix" src="/assets/images/mdm/1*IvRIZEjC7kgUBuozUFlSng.png">
+<figcaption>A <a href="https://www.cise.ufl.edu/research/sparse/matrices/HB/bcsstk14.html">2D mesh</a> (roof of Omni Coliseum, Atlanta) and its finite element matrix</figcaption>
+</figure>
+
+
+When you have to deal with large physical simulations, you get a large graph of interconnected vertices.
 
 Each vertex is a point of your system, and each edge connects two vertices. That means that these **two points** will have some **influence** on each other in the model. And so there is a **non-zero** value in the matrix that describes the graph.
 
@@ -43,7 +61,13 @@ This last sentence sums it up: you need non-zero values in the matrix when two d
 
 We have actually a very good, and famous, example of a successful trip to sparse-land: **convolutional layers**.
 
-![](/assets/images/mdm/1*3WLh11vam1ktq7kWJ9aKpg.jpeg)Learned convolutional filters. From <http://cs231n.github.io/convolutional-networks/>Convolutional layers are a smart and efficient way to implement a sparse transformation on an input tensor.
+<figure class="figcenter">
+<img class="large" alt="Learned convolutional filters" src="/assets/images/mdm/1*3WLh11vam1ktq7kWJ9aKpg.jpeg">
+<figcaption>Learned convolutional filters (from <a href="http://cs231n.github.io/convolutional-networks">http://cs231n.github.io/convolutional-networks</a>)</figcaption>
+</figure>
+
+
+Convolutional layers are a smart and efficient way to implement a sparse transformation on an input tensor.
 
 When processing images, it comes down to two things:
 
@@ -61,7 +85,12 @@ Convolutions are already an efficient form of sparsity, so you could try to make
 
 And those are getting bigger and bigger. We have greatly exceeded the 1 billion parameters in 2019, and it’s not stopping here. The cost to train and to use those networks is getting unpractical, so every method to reduce their size will be welcome.
 
-![](/assets/images/mdm/0*m3oTlwLmwuXuBCVg.jpg)From <https://devblogs.nvidia.com/training-bert-with-gpus/>### Why the OpenAI announcement is so important?
+<figure class="figcenter">
+<img alt="From Nvidia blog" src="/assets/images/mdm/0*m3oTlwLmwuXuBCVg.jpg">
+<figcaption style="margin-top:20px">From <a href="https://devblogs.nvidia.com/training-bert-with-gpus">https://devblogs.nvidia.com/training-bert-with-gpus</a>)</figcaption>
+</figure>
+
+### Why the OpenAI announcement is so important?
 
 So, if everything is fine in sparse-land, we should all be trying sparse matrices, shouldn’t we?
 
@@ -72,28 +101,48 @@ PyTorch [developers](https://github.com/soumith), for example, have done a **sig
 So the **OpenAI** **announcement** on their block sparse tools is **very** **good** **news** for those who want to use sparse ops without sacrificing training speed (and it looks like some [people](https://github.com/openai/blocksparse/issues/2) have been waiting for some time now). And we are not talking about a few percents.
 
 
-> “Our kernels typically performed **one or two orders of magnitude faster** in terms of GFLOPS.”![](/assets/images/mdm/1*qXMoK7emiT7J6CA_3O29_A.png)From OpenAI [blocksparse paper](https://d4mucfpksywv.cloudfront.net/blocksparse/blocksparsepaper.pdf)(The worst thing is that the [paper](https://d4mucfpksywv.cloudfront.net/blocksparse/blocksparsepaper.pdf) concludes that cuBLAS is faster that cuSPARSE even with very sparse matrices. How sad.)
+> “Our kernels typically performed **one or two orders of magnitude faster** in terms of GFLOPS.”
+
+
+<figure class="figcenter">
+<img alt="From OpenAI blocksparse paper" src="/assets/images/mdm/1*qXMoK7emiT7J6CA_3O29_A.png">
+<figcaption>From OpenAI <a href="https://d4mucfpksywv.cloudfront.net/blocksparse/blocksparsepaper.pdf">blocksparse paper</a></figcaption>
+</figure>
+
+The worst thing is that the [paper](https://d4mucfpksywv.cloudfront.net/blocksparse/blocksparsepaper.pdf) concludes that cuBLAS is faster that cuSPARSE even with very sparse matrices. How sad.
 
 The magic keyword here is “**block**”. **It’s hard to implement general sparse matrice computations on GPUs in an efficient way**. But it gets much easier if you add a “reasonable” constraint on the form of the matrices: their non-zeros should be grouped in small fixed-size blocks, and that makes GPU processing much easier to parallelize efficiently. Typically 8x8, 16x16 or 32x32 blocks, 16x16 already giving a very good performance, with 32x32 giving a slightly better one.
 
-![](/assets/images/mdm/1*rHFMCfJ8Td-vhJi0e0zAQw.png)A 8-block-sparse matriceOf course, the “block” constraint may be crippling some sparsification algorithms, or at least it would require some changes to take it into account.
+
+<figure class="figcenter">
+<img alt="A 8-block-sparse matrix" src="/assets/images/mdm/1*rHFMCfJ8Td-vhJi0e0zAQw.png">
+<figcaption>A 8-block-sparse matrix</figcaption>
+</figure>
+
+Of course, the “block” constraint may be crippling some sparsification algorithms, or at least it would require some changes to take it into account.
 
 But at least we can play with large high sparsity matrices, and the block constraint may not be a big issue: if you think about it, it means that there is **some locality in the dimensions**, and that sounds a quite reasonable constraint. That’s the same reason band matrices have been useful in the past (finite difference, finite elements), and it was a much stronger constraint.
 
-![](/assets/images/mdm/1*zknKSiBQpsppvjDJFIFbqw.png)Band matrix### Conclusion
+
+<figure class="figcenter">
+<img alt="Band matrix" src="/assets/images/mdm/1*zknKSiBQpsppvjDJFIFbqw.png">
+<figcaption>Band matrix</figcaption>
+</figure>
+
+### Conclusion
 
 I hope I have convinced you that 2020 will be the sparse network year (it already has two zeros, that’s a sign).
 
-**Next time **for those who are curious about what happens when they are using some CUDA based PyTorch code, we’ll dig a bit deeper in **GPU internals**, (and we will understand** why block sparse code is outrunning sparse code by a large margin**).
+**Next time** for those who are curious about what happens when they are using some CUDA based PyTorch code, we’ll dig a bit deeper in **GPU internals**, (and we will understand **why block sparse code is outrunning sparse code by a large margin**).
 
 **This article series will continue on the different techniques that have been proposed to make sparse networks, and what are the potential long term benefits.**
 
 #### More reading
 
-First, here is a [**study**](https://towardsdatascience.com/sparse-matrices-in-pytorch-part-2-gpus-fd9cc0725b71)** of PyTorch sparse performance.**
+First, here is a **[study](https://towardsdatascience.com/sparse-matrices-in-pytorch-part-2-gpus-fd9cc0725b71) of PyTorch sparse performance.**
 
 If you want to have a very detailed review of **different complementary approaches to network size reduction**, and not just about sparse ones, you should definitely read [this article](http://mitchgordon.me/machine/learning/2020/01/13/do-we-really-need-model-compression.html).
 
-And if you want to **create illustrations like the header of this blog post**, you will find the code I used on my [**github**](https://github.com/madlag/medium_posts/tree/master/sparse_matrices_1).
+And if you want to **create illustrations like the header of this blog post**, you will find the code I used on my **[github](https://github.com/madlag/medium_posts/tree/master/sparse_matrices_1)**.
 
   
