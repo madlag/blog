@@ -26,7 +26,7 @@ authors:
 copyright_name: François Lagunas
 # Plugins
 plugins:
-  - jekyll-paginate-v2
+  - jekyll-paginate
   - jekyll-sitemap
   - jekyll-feed
   - jekyll-seo-tag
@@ -40,8 +40,11 @@ jekyll-archives:
   permalinks:
     category: '/category/:name/'
     
+# Pagination
+paginate: 6
+paginate_path: /page:num/
 
-pagination:
+paginationv2:
   # Site-wide kill switch, disabled here it doesn't run at all
   enabled: true
 
