@@ -6,10 +6,8 @@ description: "TLDR: strict quarantine. No other measure will have an effect."
 author: francois
 tags: [ covid19, science]
 categories: []
-image: assets/images/mdm/1*2dzy7wKfCGHqaR6eWPV6ug.png
+image: assets/images/posts/coronavirus1/flatten_the_curve.png
 ---
-
-#### TLDR: strict quarantine. No other measure will have an effect.
 
 #### Is it deadly?
 

@@ -6,10 +6,9 @@ description: "Avec une quarantaine stricte. Il n’y a plus d’autre moyen."
 author: francois
 tags: [ covid19, science]
 categories: []
-image: assets/images/mdm/1*2dzy7wKfCGHqaR6eWPV6ug.png
+image: assets/images/posts/coronavirus1/flatten_the_curve.png
 ---
 
-Avec une quarantaine stricte. Il n’y a plus d’autre moyen.
 
 ### Est-t-il dangereux ?
 
