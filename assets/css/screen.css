@@ -130,6 +130,26 @@ section.recent-posts {
     background-size: cover;
 }
 
+figure.figleft {
+    float: left;
+    margin-right: 30px;
+    margin-left: -100px;
+}
+
+figure.figright {
+    float: right;
+    margin-left: 30px;
+    margin-right: -100px;
+}
+
+
+figcaption {
+    display: block;
+    font-size: 16px;
+    color: rgba(117, 117, 117, 1);
+    text-align: center;
+}
+
 .listfeaturedtag .card,
 .card-footer {
     border: 0;

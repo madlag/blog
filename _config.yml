@@ -118,4 +118,4 @@ kramdown:
 # Lazy Images ("enabled" or "disabled")
 lazyimages: "disabled"
 
-exclude: [changelog.md, LICENSE.txt, README.md, Gemfile, Gemfile.lock, vendor]
+exclude: [changelog.md, LICENSE.txt, README.md, Gemfile, Gemfile.lock, vendor, build.sh]
