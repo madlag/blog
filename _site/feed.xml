@@ -1,0 +1,597 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Numbers ∩ Nature</title>
+    <description>A geek stance on AI, physics, and whatever catch my eye</description>
+    <link>http://localhost:4000/</link>
+    <atom:link href="http://localhost:4000/feed.xml" rel="self" type="application/rss+xml"/>
+    <pubDate>Tue, 16 Jun 2020 09:48:51 +0200</pubDate>
+    <lastBuildDate>Tue, 16 Jun 2020 09:48:51 +0200</lastBuildDate>
+    <generator>Jekyll v3.8.7</generator>
+    
+      <item>
+        <title>Sparse Neural Networks (2/N): GPU Performance.</title>
+        <description>&lt;p&gt;&lt;strong&gt;NVIDIA Ampere A100 introduces fine-grained structured sparsity&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;Welcome back for this series on Sparse Neural Networks. In case you have not read our first introductory episode, &lt;a href=&quot;https://link.medium.com/In4bINyeO3&quot;&gt;here it is&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;I told you last time that** sparsity would a major topic in 2020&lt;strong&gt;, and it looks like it’s getting indeed some steam: **Nvidia&lt;/strong&gt; is announcing with the &lt;strong&gt;Ampere&lt;/strong&gt; GPU generation that** sparsity is directly baked into their GPU design.**&lt;/p&gt;
+
+&lt;p&gt;It’s quite a bold move: if you consider the time it takes to design and produce a new GPU line, they made this decision at least 2 years ago, and you need some vista to understand that it would be an important trend 2 years later.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/mdm/1*M1ky4jno_MmGg5eR3tgGyg.png&quot; alt=&quot;André Ampère&quot; /&gt;André Ampère, 1825 (from Wikipedia)So that’s the perfect pretext to make a large digression on &lt;strong&gt;GPU architectures&lt;/strong&gt; and why knowing better about them may matter for your daily Machine Learning jobs.&lt;/p&gt;
+
+&lt;p&gt;To be honest, this will more matter to you if you are working on some low-level code.&lt;/p&gt;
+
+&lt;p&gt;If you are using PyTorch or other libraries, and you are just using the extremely good tools it provides, you are probably fine.&lt;/p&gt;
+
+&lt;p&gt;But** &lt;strong&gt;&lt;a href=&quot;https://www.joelonsoftware.com/2002/11/11/the-law-of-leaky-abstractions/&quot;&gt;**leaky abstractions**&lt;/a&gt;&lt;/strong&gt; come back at you &lt;strong&gt;faster than you’d think&lt;/strong&gt;.** Your model got a bit heavier? Want to train faster? OK, let’s use a DataParallel PyTorch node, and we’ll be fine on 8 GPUs. But wait, why my GPU usage is down the gutter? And on 8 GPUs it’s only 3 times as fast as on a single one?&lt;/p&gt;
+
+&lt;p&gt;It especially matters to me, as I have been telling you last time that the &lt;strong&gt;performance of sparse matrices operations was not satisfactory&lt;/strong&gt;. Today we’ll see why it can be hard to get good performance on GPUs, how it depends on your data structure and algorithms, and how you can overcome it, or at some times at least mitigate some issues.&lt;/p&gt;
+
+&lt;p&gt;And of course, all this is a good pretext to read about some mind-blowing GFlops numbers and killer optimizations, nothing to sneeze at…&lt;/p&gt;
+
+&lt;h3 id=&quot;some-physics&quot;&gt;Some physics&lt;/h3&gt;
+
+&lt;p&gt;You may wonder why your PC/Mac is not significantly faster than a few years ago. That’s because most of the apps you are using are mostly sequential: they are doing only one thing at a time, or almost, and sequential performance has been stagnating for some years.&lt;/p&gt;
+
+&lt;p&gt;That’s because sequential performance is mostly limited by &lt;strong&gt;operating&lt;/strong&gt; &lt;strong&gt;frequency&lt;/strong&gt;, which is itself limited by:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;the** size of the finest details** that are drawn on the silicon, something that is getting harder and harder to improve,&lt;/li&gt;
+  &lt;li&gt;the amount of &lt;strong&gt;heat&lt;/strong&gt; that is created by the chips, a function of voltage and frequency. First, a &lt;strong&gt;transistor&lt;/strong&gt; emits heat when &lt;strong&gt;changing state&lt;/strong&gt;, so proportionally to frequency. Second, &lt;strong&gt;the higher the frequency, the higher the voltage&lt;/strong&gt; you need. So in the end &lt;strong&gt;emitted heat is more than linear in the frequency&lt;/strong&gt;, not something ideal.
+&lt;img src=&quot;/assets/images/mdm/1*0b-KUkO2e22UPpPKrRi9PQ.png&quot; alt=&quot;&quot; /&gt;From &lt;a href=&quot;https://youtu.be/Knd-U-avG0c?t=109&quot;&gt;https://youtu.be/Knd-U-avG0c&lt;/a&gt;So if you could efficiently and cheaply remove heat from the chips, you could get higher frequencies, but only marginally, and it gets quickly impractical (water-cooling, you know, is &lt;em&gt;cool&lt;/em&gt;, but &lt;a href=&quot;https://www.avadirect.com/blog/leaking-liquid-cooler-whats-next/&quot;&gt;not when it leaks&lt;/a&gt;…).&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;strong&gt;The recent ARM takeover is not an accident&lt;/strong&gt;. When you work for years on &lt;strong&gt;low consumption and so low heat producing chips,&lt;/strong&gt; when everybody hits the “heat wall”, you are in a &lt;strong&gt;good position to&lt;/strong&gt;&lt;a href=&quot;https://9to5mac.com/2018/11/01/geekbench-ipad-pro-performance/&quot;&gt;** push performance higher**&lt;/a&gt;, even if computers migrating to your pocket was the opportunity that made the difference.&lt;/p&gt;
+
+&lt;h3 id=&quot;chip-design&quot;&gt;Chip design&lt;/h3&gt;
+
+&lt;p&gt;So people invented tricks to make use of the same amount of cycles to do more, to do almost any instruction in one single cycle, to forecast what’s the next instruction etc. Very different architectures to tackle the same issues were used (&lt;a href=&quot;https://cs.stanford.edu/people/eroberts/courses/soco/projects/risc/risccisc/&quot;&gt;RISC, CISC&lt;/a&gt;). But the returns are diminishing, as always.&lt;/p&gt;
+
+&lt;p&gt;So what can you do to feed the hungry “Moore’s Law Beast”, and the marketing guys who keep asking why the numbers are flattening?&lt;/p&gt;
+
+&lt;p&gt;You look for problems that need to do the same kind of task a billion times, and each task does not need the result of another task, so all tasks can be computed at the same time. (the technical slang for this is “&lt;a href=&quot;https://en.wikipedia.org/wiki/Embarrassingly_parallel&quot;&gt;&lt;strong&gt;Embarrassingly Parallel&lt;/strong&gt;&lt;/a&gt;” …).&lt;/p&gt;
+
+&lt;p&gt;Fortunately, there are a lot of them. &lt;strong&gt;Linear Algebra&lt;/strong&gt;, for example, is highly parallel by nature, and &lt;strong&gt;machine learning&lt;/strong&gt; is using it a lot, like lots of &lt;strong&gt;physics&lt;/strong&gt; &lt;strong&gt;simulation&lt;/strong&gt;, &lt;strong&gt;computer&lt;/strong&gt; &lt;strong&gt;graphics&lt;/strong&gt;, and so on.&lt;/p&gt;
+
+&lt;p&gt;So instead of increasingly complex single cores processors, we see much simpler (and smaller on silicon) cores but grouped by the hundreds or thousands. This way you are guaranteed that the ratio computation/silicon area is getting through the roof.&lt;/p&gt;
+
+&lt;p&gt;Great. That’s a simple idea. But of course, reality is more complex than that.&lt;/p&gt;
+
+&lt;h3 id=&quot;bottlenecks&quot;&gt;Bottlenecks&lt;/h3&gt;
+
+&lt;p&gt;&lt;strong&gt;If you have a lot of computing power available, you have to feed it with data. **Memory is getting faster with time, but it’s harder than just duplicating cores. Because&lt;/strong&gt; memory buses are basically 1D, and compute cores are 2D**.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/mdm/1*Fruof2lsq_v7hdrXZUhRjg.png&quot; alt=&quot;&quot; /&gt;From &lt;a href=&quot;https://unsplash.com/photos/VEVfbQtyB8s&quot;&gt;https://unsplash.com/photos/VEVfbQtyB8s&lt;/a&gt;You can think about it as a &lt;strong&gt;city&lt;/strong&gt; (the computing cores), and the suburban workers coming each morning in the city (the data). &lt;strong&gt;The city is 2D, the highways are 1D,&lt;/strong&gt; and of course, you get some heavy traffic jams. So you add some new &lt;strong&gt;lanes&lt;/strong&gt; on the &lt;strong&gt;highways&lt;/strong&gt; (the width of the memory bus), but it’s always the &lt;strong&gt;bottleneck&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;If you want to maximize the highway utility, you would have to use all day long, encouraging people to come to and leave from work earlier or later.&lt;/p&gt;
+
+&lt;p&gt;That’s the same thing for the memory bus: &lt;strong&gt;you have to make sure that you are balancing computation and memory transfers so you don’t waste time waiting without using the memory bus or the compute cores&lt;/strong&gt;. That’s why it’s hard to reach peak performance for every task.&lt;/p&gt;
+
+&lt;p&gt;Some tasks even prefer to compute twice the same thing instead of transferring some data: **compute is plentiful and memory bandwidth is scarce **(and the gap is growing each year). In graphics, procedural texturing is used more and more for this exact reason: textures need bandwidth, and so if you can generate the same result with few memory transfers but some additional compute, it’s a win.&lt;/p&gt;
+
+&lt;h3 id=&quot;gpu-architecture-principles&quot;&gt;GPU Architecture principles&lt;/h3&gt;
+
+&lt;p&gt;A lot of the complexities of GPU architectures exist to overcome those bottlenecks.&lt;/p&gt;
+
+&lt;h4 id=&quot;hierarchy&quot;&gt;Hierarchy&lt;/h4&gt;
+
+&lt;p&gt;**You don’t get the 1000s of cores in a GPU in a single bag: they are grouped at multiple levels. **We’ll take the example of the new Ampere A100. Numbers change according to the generation, but the general principles are slowly evolving. (Numbers below come mostly from the &lt;a href=&quot;https://devblogs.nvidia.com/nvidia-ampere-architecture-in-depth/&quot;&gt;Nvidia blog&lt;/a&gt;)&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/mdm/1*i60_7GqIKxjgunaXe7CiCw.png&quot; alt=&quot;&quot; /&gt;&lt;em&gt;The GA100 streaming multiprocessor (SM)&lt;/em&gt;At the lower level you have a Streaming Processor (SP). He is part of a group of 16 SP which computes the same sequence of instructions at the same time.&lt;/p&gt;
+
+&lt;p&gt;(To be more precise, you have 16 FP32 cores, 8 FP64 cores, 16 INT32 cores, 1 Tensor Core, and 1 texture unit per group. More on tensor cores later)&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;The first constraint is the following: the 16 SP in the group cannot diverge from a single sequence instruction. This is called SIMD: Same Instruction, Multiple Data.&lt;/strong&gt; That’s not exactly true, the instructions can contain “if“ statement, but if different branches are taken, some compute will be lost because every processor will have to execute both branches, and throw the results that are not useful for its own work.&lt;/p&gt;
+
+&lt;p&gt;4 groups of 16 SPs form a Streaming Multiprocessor (SM). Each group executes the same kernel (=function), but not in a strictly synchronized way. Still, you’ll have at least 64 cores working on the same task, or you’ll lose some computing capacity.&lt;/p&gt;
+
+&lt;p&gt;Then, you group 2 SMs to form a “Texture Processing Cluster” (TPC), and you group 8 TPCs to form a GPC (GPU Processing Cluster). 8GPCs and you have an A100 GPU. Pfew!&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;To sum it up, there are 128 SMs in an A100, so 8192 FP32 cores, but as you can see, we are far from getting a flat set of “8192” cores! **(those are maximum numbers, first processors won’t have the full set of cores)&lt;/strong&gt;.**&lt;/p&gt;
+
+&lt;p&gt;If you compare the A100 structure with the Volta V100, these structural numbers are almost the same, except for the PCs, and so for the grand total of course. The innards of the cores of course have changed too, but it looks like that the communication structure of the V100 was considered quite good for the kind of job it’s usually given. The Tensor Cores seems to be the area where the most innovation is taking place (more on this later).&lt;/p&gt;
+
+&lt;p&gt;You can see in the comparison below that all those numbers varied significantly with time, in search of the best performance :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/mdm/1*MmPCD_ypvtHDhwAGUZhqHQ.png&quot; alt=&quot;&quot; /&gt;#### Why so many levels? Performance&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;The main reason is of course to improve real-life performance. And in real life, you don’t have a single task to be done.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;First, there may be several processes using your GPU at the same time on your machine. Not sure if it’s a good idea to get some good performance, but it’s of course something very usual.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;In the new Ampere GPU, you can even partition your GPU to server multiple Virtual Machines with strong guarantees on your data security: the new feature is called “Multi-Instance GPU”.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;In a single process, if your network contains &lt;strong&gt;several layers&lt;/strong&gt;, some linear, some non-linear, some embedding, each one will use one or &lt;strong&gt;several kernels&lt;/strong&gt; to do its job.&lt;/p&gt;
+
+&lt;p&gt;You may think that they are executed one after the other. It’s true to some extent, but in order to** keep your GPU busy&lt;strong&gt;, your **CPU&lt;/strong&gt; is sending a &lt;strong&gt;stream of tasks to be done&lt;/strong&gt;, not a task after the other, and the GPU will do them without the CPU waiting for each one to complete.&lt;/p&gt;
+
+&lt;p&gt;The CPU will basically wait after a full batch has been processed, after the forward and backward pass, because he has to update the full model before starting a new batch.&lt;/p&gt;
+
+&lt;p&gt;There are several reasons to have this “stream of task” model:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;The first reason is that starting a task takes some time, so the GPU can prepare the next task before the previous is started: changing the active kernel on some part of the GPU takes some time, &lt;strong&gt;pipelining&lt;/strong&gt; saves time.&lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Second, in the task stream, some tasks are not dependent on each other, so both can be executed in parallel in the GPU, so more work to be done, so less chance some part of the GPU is idling.
+Some &lt;strong&gt;networks&lt;/strong&gt; are &lt;strong&gt;very, very parallel **to compute, like **Transformers&lt;/strong&gt;, and so their efficiency is very good:&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;there are only a &lt;strong&gt;few different layers&lt;/strong&gt;, so &lt;strong&gt;few kernel changes&lt;/strong&gt; and a lot of work for each kernel&lt;/li&gt;
+  &lt;li&gt;there are only &lt;strong&gt;loose dependencies between computations&lt;/strong&gt; (eg for each token), so the GPU has a lot of degrees of freedom when scheduling the different parts of the computation: if a kernel is waiting for some data, maybe another one can compute its result because it already has its own data available.
+    &lt;h4 id=&quot;why-so-many-levels-economics&quot;&gt;Why so many levels? Economics&lt;/h4&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Another reason is that it’s hard to get zero-defect silicon at this level of detail.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Ampere GPUs&lt;/strong&gt; contain &lt;strong&gt;54 billion transistors&lt;/strong&gt;. Any defective transistor, and you may have to throw the GPU to the bin. &lt;strong&gt;The fraction of chips that pass the test is called the &lt;em&gt;yield&lt;/em&gt;.&lt;/strong&gt; Those chips are huge, and silicon real estate costs a lot, so each failed chip is a big loss, just for a small defect on a single transistor somewhere in the silicon.&lt;/p&gt;
+
+&lt;p&gt;So instead of throwing the chip to the bin, &lt;strong&gt;you test some sub-parts of the chip, and you just disable the failing sub-parts&lt;/strong&gt;. That means, for example, disabling a GPC (remember, there are 7 of them in a A100, instead of a theoretical 8). And you sell it in a lower-end card, &lt;strong&gt;with reduced specs&lt;/strong&gt;. This process is called &lt;strong&gt;&lt;em&gt;binning&lt;/em&gt;&lt;/strong&gt;. If you are really good, and your chips are all perfect, you may even disable perfectly working parts of your chip, to segment your offer (and back in time, some users were able to re-enable those disabled parts of silicon to get the bang without the buck…)&lt;/p&gt;
+
+&lt;h3 id=&quot;developing-for-gpus&quot;&gt;Developing for GPUs&lt;/h3&gt;
+
+&lt;p&gt;So what are the consequences of the GPU architecture choices on development?&lt;/p&gt;
+
+&lt;h4 id=&quot;kernels&quot;&gt;Kernels&lt;/h4&gt;
+
+&lt;p&gt;First, &lt;strong&gt;you have to write some kernels,&lt;/strong&gt; using the primitives you get. It’s a quite specific exercise, as you have to manually manage caches, registers, the synchronization of the different cores, etc. For simple stuff like matrix products, or activation layers, it’s quite straightforward, as they are completely parallel by nature.&lt;/p&gt;
+
+&lt;p&gt;But for some algorithms, like sorting, it can be a lot trickier to have something efficient, because you will have some issues using all the cores all the time.&lt;/p&gt;
+
+&lt;h4 id=&quot;grids-and-performance&quot;&gt;&lt;strong&gt;Grids and performance&lt;/strong&gt;&lt;/h4&gt;
+
+&lt;p&gt;That’s because the kernel is only a small part of the problem, the other is the way you distribute the work among cores. And the performance gains are often made more on the distribution than on an optimal kernel.&lt;/p&gt;
+
+&lt;p&gt;The way you distribute the work is usually done by** partitioning your job into a 2D or 3D grid, **then mapping each point of the grid to a thread, and finally mapping those threads to physical cores. Those dimensions will correspond for example to the dimensions of the output of a layer, plus the batch dimension.&lt;/p&gt;
+
+&lt;p&gt;As you have seen, in a GPU you get thousands of cores to work with, but with a really complex multi-layered structure. And this structure change according to the generation and model of the GPU. &lt;strong&gt;So it’s hard to find the right way to choose those mappings.&lt;/strong&gt; You often have to make some benchmarks to find the right way to do a computation with given dimensions on a specific GPU, and that information will be used in the future to choose the best strategy at runtime.&lt;/p&gt;
+
+&lt;h4 id=&quot;memory&quot;&gt;Memory&lt;/h4&gt;
+
+&lt;p&gt;&lt;strong&gt;But the main and the most difficult hurdle a developer face while developing for GPU’s architecture is managing memory.&lt;/strong&gt; And specifically memory transfers. The available memory bandwidth is huge, but the computing power is even larger. And just as you did not get a flat space of computing cores, you don’t get completely random access to the memory for free.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;If you want to access a float number stored in the main memory from a GPU core, you will wait literally for *ages *compared to the time it takes to compute a sum or a multiply.&lt;/strong&gt; So you need to be able to start hundreds of computations at once, and when the data is finally available, you resume your kernel, you execute a few local operations, until you need some more data from the main memory.&lt;/p&gt;
+
+&lt;p&gt;Some special ops like “prefetch” exist, to declare that you will need some data in a few instructions, and the role of the compiler is to reorder the instructions so you keep the memory controllers busy while keeping the core busy too. And at runtime, a large part of the GPU silicon is devoted to handling all those threads that are “in flight” and their current memory requests.&lt;/p&gt;
+
+&lt;p&gt;But there are some low-level constraints that may cost you a lot. Just like the base computation unit is 16 cores doing the same job,** you really get peak memory performance if you load memory by quite large contiguous blocks, &lt;strong&gt;for example, 16 floats = 64 bytes, by a group of threads (called warp in CUDA lingo). This is called **&lt;em&gt;coalesced&lt;/em&gt;&lt;/strong&gt; access. This is another reason, and often the main one, why choosing the right grid to dispatch your task on is important.&lt;/p&gt;
+
+&lt;p&gt;So now, let’s unroll back to our initial issue if you still remember (I would forgive you, I can barely): &lt;strong&gt;why sparse matrices ops are slow?&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;If you look at the memory access pattern you need to make a sparse matrix/ matrix multiplication, you’ll see that by definition it’s hard to have those blocks of 16 floats when reading the matrix weights&lt;/strong&gt;. And reading 16 contiguous floats is just a minimum, you’ll need to read more data at once to reach full performance.&lt;/p&gt;
+
+&lt;p&gt;That explains why a naive implementation can be at least an order of magnitude slower than the dense version.&lt;/p&gt;
+
+&lt;p&gt;Unless you make some compromise and use a &lt;strong&gt;block sparse matrix&lt;/strong&gt;: each block, if large enough, will produce &lt;strong&gt;large contiguous accesses&lt;/strong&gt;. 8x8 blocks is a minimum in &lt;a href=&quot;https://openai.com/blog/block-sparse-gpu-kernels/&quot;&gt;OpenAI implementation&lt;/a&gt;, but you will get even better performance with 32x32 blocks.&lt;/p&gt;
+
+&lt;p&gt;But of course, you have to make sure that your model is working in a similar fashion with block sparse compared to pure sparse matrices. It can be the case if your matrices are large enough so block size is small in comparison, but you have to check.&lt;/p&gt;
+
+&lt;p&gt;The other way is to convince an executive at Nvidia to add some hardware sparse support into their next-gen GPU, and now it’s done. More on this below!&lt;/p&gt;
+
+&lt;h4 id=&quot;inter-gpu-memory-transfer&quot;&gt;Inter-GPU memory transfer&lt;/h4&gt;
+
+&lt;p&gt;&lt;strong&gt;Memory bottlenecks exist within the GPU, but if you work with multiple GPUs sharing a single model, the available bandwidth is way lower than between memory and cores.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;The &lt;a href=&quot;https://pytorch.org/tutorials/beginner/blitz/data_parallel_tutorial.html&quot;&gt;&lt;strong&gt;DataParallel&lt;/strong&gt;&lt;/a&gt; node of &lt;strong&gt;PyTorch&lt;/strong&gt; is convenient, but it is no magic: after each batch, the GPUs must send their gradients to a single GPU, and then this latter must broadcast the updated model to each GPU. **If your model is big enough, this transfer can take very significant time, and the performance will suffer. **Another point is that the transfers are synchronous, no GPU can work if the new model has not been received.&lt;/p&gt;
+
+&lt;p&gt;Another way to use multiple GPUs is to split a single model between the different GPUs, and then transfer only the “frontier” layers from a GPU to the next. Same thing for backpropagation. This may not be ideal either as the first layer will have to wait for the last to complete before the backpropagation can occur. The performance will depend heavily on the morphology of the network.&lt;/p&gt;
+
+&lt;h3 id=&quot;ampere-highlights&quot;&gt;Ampere Highlights&lt;/h3&gt;
+
+&lt;p&gt;Let’s finish where we started, with the latest Nvidia announcement.&lt;/p&gt;
+
+&lt;h4 id=&quot;tensor-cores&quot;&gt;Tensor Cores&lt;/h4&gt;
+
+&lt;p&gt;With Volta, Nvidia introduced new “&lt;strong&gt;Tensor Core units&lt;/strong&gt;”, and it looks like they are here to stay. Turing and now &lt;strong&gt;Ampere&lt;/strong&gt; iterated on these new units.&lt;/p&gt;
+
+&lt;p&gt;You can see them as ultra-specialized units, with some significant dedicated silicon.&lt;/p&gt;
+
+&lt;p&gt;And this means a lot in terms of speed, especially quantized networks inference :&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/mdm/1*e7SMvK3WdZmz32poFUQaJA.gif&quot; alt=&quot;&quot; /&gt;From &lt;a href=&quot;https://youtu.be/yyR0ZoCeBO8?t=19&quot;&gt;https://youtu.be/yyR0ZoCeBO8?t=19&lt;/a&gt;For training, it was a bit more difficult on Volta, as working with FP16 was possible but a bit tricky (the 8x gain in speed was indeed tempting).&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;But now with Ampere, Nvidia announces support for FP32 and even FP64 for Tensor Cores.&lt;/strong&gt; &lt;strong&gt;And it looks like FP32 is now 20 times faster than on Volta with sparsity, and 10 times without sparsity.&lt;/strong&gt; And this is for training and inference because it’s just big tensor ops, nothing special here.&lt;/p&gt;
+
+&lt;p&gt;It looks like we’ll be getting some nice toys to play with.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/mdm/1*rBrF53VkNYC5gL6YJExXxQ.png&quot; alt=&quot;&quot; /&gt;#### Sparsity&lt;/p&gt;
+
+&lt;p&gt;From the &lt;a href=&quot;https://devblogs.nvidia.com/nvidia-ampere-architecture-in-depth/#&quot;&gt;Nvidia Blog&lt;/a&gt; :&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;NVIDIA has developed a simple and universal recipe for sparsifying deep neural networks for inference using this 2:4 structured sparsity pattern.&lt;img src=&quot;/assets/images/mdm/1*xq_MGzOOGVazlgAT8766uA.png&quot; alt=&quot;&quot; /&gt;If you have read the first part of this series, you should feel at home.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;&lt;strong&gt;The idea&lt;/strong&gt; is simple: maybe using a fully dense matrix is not useful. And what Nvidia is claiming is that it’s true, &lt;strong&gt;keeping only half the weights has a minimal impact on precision.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;And so they propose a method to reduce the number of weights. **But what is more interesting, is that the A100 GPU has new instructions to process efficiently these sparse matrices, at twice the speed of dense ones **(no magic here, only half the multiply occurs of course).&lt;/p&gt;
+
+&lt;p&gt;So anyone can try its own method to sparsify the matrices and use the new instructions to speed things up. &lt;strong&gt;The only constraint is that the sparse pattern is fixed, as every 4 cells must have 2 sparse ones at most.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;You can compare this to the way textures are compressed to save memory but for floating computation and not just graphics.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;I see it mostly for inference at first, but I am sure some clever people will come with imaginative ways to use those new capabilities for training too, as it’s just some new compute ops.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;What about “sparse block sparse matrices”, by combining soon to be released OpenAI “block sparse matrices” with this? We’ll see.&lt;/p&gt;
+
+&lt;h3 id=&quot;conclusion&quot;&gt;Conclusion&lt;/h3&gt;
+
+&lt;p&gt;I hope you enjoyed this second part of our trip to sparse land, even if it may have been a bit harder to digest.&lt;/p&gt;
+
+&lt;p&gt;I hope too this will help you to better understand th&lt;strong&gt;e level of mastery developers in the PyTorch or Keras team show&lt;/strong&gt;: they manage to &lt;strong&gt;hide all this complexity **and make it easy for mere mortals to use these supercomputer-on-a-chip to their full power, in just a **few lines of python.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;Next time we will get back to more usual depths: we’ll see some** techniques we can use to train sparse networks**, and how performance is impacted.&lt;/p&gt;
+
+&lt;p&gt;By the way, congrats to Victor Sanh, Thomas Wolf, and Alexander M. Rush for their latest paper “&lt;a href=&quot;https://arxiv.org/abs/2005.07683&quot;&gt;Movement Pruning: Adaptive Sparsity by Fine-Tuning&lt;/a&gt;”!&lt;/p&gt;
+
+</description>
+        <pubDate>Thu, 28 May 2020 00:00:00 +0200</pubDate>
+        <link>http://localhost:4000/sparse-neural-networks-2-n-gpu-performance/</link>
+        <guid isPermaLink="true">http://localhost:4000/sparse-neural-networks-2-n-gpu-performance/</guid>
+        
+        <category>AI</category>
+        
+        <category>NLP</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>Comment arrêter le coronavirus ?</title>
+        <description>&lt;p&gt;Avec une quarantaine stricte. Il n’y a plus d’autre moyen.&lt;/p&gt;
+
+&lt;h3 id=&quot;est-t-il-dangereux-&quot;&gt;Est-t-il dangereux ?&lt;/h3&gt;
+
+&lt;p&gt;Oui, pour les personnes âgées. Pour elles, il est considéré comme étant &lt;strong&gt;10x plus dangereux que la grippe&lt;/strong&gt;. La mortalité est de :&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;3.6% pour les 60–69 ans&lt;/li&gt;
+  &lt;li&gt;8.0% pour les 70–79 ans&lt;/li&gt;
+  &lt;li&gt;22% pour les 80+ ans
+(&lt;a href=&quot;https://www.worldometers.info/coronavirus/coronavirus-age-sex-demographics/&quot;&gt;source&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Donc oui, vous ne prenez pas de mesures pour vous, mais &lt;strong&gt;pour vos parents et vos grand-parents.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;est-il-plus-contagieux-que-la-grippe-&quot;&gt;Est-il plus contagieux que la grippe ?&lt;/h3&gt;
+
+&lt;p&gt;Il est &lt;strong&gt;très contagieux&lt;/strong&gt;. Beaucoup plus que la grippe.&lt;/p&gt;
+
+&lt;p&gt;**Le nombre de personnes qui sont actuellement en train de mourir en Italie double tous les 2.2 jours. **Oui, vous avez bien lu. En une semaine, le nombre de victimes augmente d’un facteur 9. Et la semaine suivante aussi. Vérifiez par vous-même (toutes les données de ce billet proviennent de l’&lt;a href=&quot;https://www.ecdc.europa.eu/&quot;&gt;ECDC&lt;/a&gt; ):&lt;/p&gt;
+
+&lt;p&gt;Mardi 25 février : 6&lt;br /&gt;
+Mardi 3 mars : 52 (x 8.6)&lt;br /&gt;
+Mardi 10 mars : 464 (x 8.9)La seule explication de ceci est que &lt;strong&gt;le coronavirus se propage a très grande vitesse **dans la population. Il serait intéressant de savoir pourquoi, et comment, mais nous n’avons pas vraiment besoin ici de le savoir en détail. **Les chiffres sont là: le virus est horriblement contagieux.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;Ne faites aucune hypothèse sur ce qu’il est prudent de faire. Evitez tout contact, que ce soit par la peau ou par la respiration. Porter un masque paraît une mesure de bon sens, en particulier au contact de personnes fragiles, mais c’est utile de façon générale.&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;https://www.news.com.au/lifestyle/health/health-problems/how-coronavirus-spreads-twice-as-far-on-trains-buses-public-transport/news-story/938b067e72449cd536c1b2d2d0f53070&quot;&gt;Les transports publics et toutes les activités non strictement nécessaires doivent être immédiatement arrêtées si elles mettent des personnes en contact, même en petits nombres.&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;Vous avez besoin d’un seul graphique pour cela.&lt;/p&gt;
+
+&lt;h3 id=&quot;le-graphique&quot;&gt;Le graphique&lt;/h3&gt;
+
+&lt;p&gt;Voici le nombre de morts total pour quelques pays, sur un graphique légèrement spécial que nous allons expliquer.&lt;/p&gt;
+
+&lt;p&gt;(&lt;a href=&quot;https://github.com/madlag/coronavirus_study/blob/master/notebooks/Coronavirus_by_country.ipynb&quot;&gt;le code source &lt;/a&gt;est ici, il sera mis à jour quotidiennement)&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/mdm/1*QbBOOqbpbGWABCvVxlo0jw.png&quot; alt=&quot;&quot; /&gt;Pour ceux qui ne sont &lt;strong&gt;pas familiers des maths&lt;/strong&gt;, ne vous inquiétez pas, &lt;strong&gt;nous resterons très simple&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;L’axe vertical est dit “logarithmique”. C’est un gros mot pour dire que chaque fois qu’on progresse d’une unité vers le haut, les valeurs sont multipliées par 10. Regardez sur la gauche : 10¹ signifie 10, 10² -&amp;gt;100, 10³ -&amp;gt;1000 etc.&lt;/p&gt;
+
+&lt;p&gt;Nous utilisons cette &lt;strong&gt;échelle&lt;/strong&gt;, car sur un tel graphique &lt;strong&gt;une épidémie se traduira au début par une ligne droite&lt;/strong&gt;. Après que des &lt;strong&gt;mesures&lt;/strong&gt; soient prises, &lt;strong&gt;la ligne devrait s’infléchir vers le bas&lt;/strong&gt;, traduisant une propagation ralentie (voyez par exemple la courbe de la Chine).&lt;/p&gt;
+
+&lt;p&gt;La ligne en pointillés représente la croissance dont nous parlions au début : un doublement du nombre des morts tous les 2.2 jours.&lt;/p&gt;
+
+&lt;h3 id=&quot;que-pouvons-nous-dire-sur-litalie-&quot;&gt;Que pouvons-nous dire sur l’Italie ?&lt;/h3&gt;
+
+&lt;p&gt;Le nombre de mort en &lt;strong&gt;Italie&lt;/strong&gt; suit précisément la &lt;strong&gt;ligne en pointillés&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;Pas d’infléchissement. Et donc pas de signe d’amélioration.&lt;/p&gt;
+
+&lt;p&gt;Ceci dit, il s’agit du nombre de morts, ce sera la dernière chose à s’améliorer, car il y a un délai entre le moment où les personnes deviennent malades et le moment où elles décèdent éventuellement.&lt;/p&gt;
+
+&lt;p&gt;Il est donc possible que la situation soit déjà en train de s’améliorer, sans que cela se voie sur le graphique. Cependant, pour la même raison, le nombre de morts continuera un certain temps à augmenter, pendant une à trois semaines donc.** Cela signifie potentiellement 9x, 81x ou plus de morts par rapport au décompte actuel. **Et nous avons déjà dépassé les 800 morts en Italie (au 11 mars 2020).&lt;/p&gt;
+
+&lt;h3 id=&quot;mais-litalie-a-fait-des-erreurs-au-départs-cela-narrivera-pas-à-mon-pays&quot;&gt;Mais l’Italie a fait des erreurs au départs, cela n’arrivera pas à mon pays.&lt;/h3&gt;
+
+&lt;p&gt;&lt;strong&gt;C’est peu probable.&lt;/strong&gt; Comme vous pouvez le voir sur le graphique, &lt;strong&gt;la même tendance se produit exactement pour la France&lt;/strong&gt;, et c’est aussi le cas de nombreux autres pays occidentaux qui ne sont pas représentés. Pire, l’Espagne paraît prendre une trajectoire encore plus grave.&lt;/p&gt;
+
+&lt;p&gt;Les seuls pays qui *semblent *s’en sortir un peu mieux sont :&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Beaucoup mieux:&lt;/strong&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;La Chine et la Corée sur Sud: ils ont traité le problème différemment, mais cela a fonctionné, et malgré cela le bilan de la Chine a été très lourd.&lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Hong Kong, Taïwan: ils ont réussi à éviter l’épidémie et n’ont eu que quelques cas.
+&lt;strong&gt;Seulement un peu mieux:&lt;/strong&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;L’Allemagne mais les autorités ne semblent pas compter les cas avec des co-morbidités.&lt;/li&gt;
+  &lt;li&gt;Les Etats-Unis, mais après vérification leur nombre de cas double bien en suivant la même tendance, ce qui tendrait à prouver que leur nombre de morts est sous-évalué&lt;/li&gt;
+  &lt;li&gt;l’Iran, mais il est difficile de savoir exactement ce qu’il s’y passe vraiment.
+    &lt;h3 id=&quot;mais-prendre-des-mesures-proportionnées-ralentit-déjà-la-propagation-&quot;&gt;Mais prendre des mesures proportionnées ralentit déjà la propagation !&lt;/h3&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;strong&gt;Faux&lt;/strong&gt;. Le bon sens tendrait à dire que cela devrait avoir un impact. &lt;strong&gt;Mais regardez le graphique.&lt;/strong&gt; L’Italie a pris des &lt;strong&gt;mesures sérieuses&lt;/strong&gt;, après un mauvais départ, similaires aux mesures prises par la France. &lt;strong&gt;Pourtant, la courbe est une ligne droite.&lt;/strong&gt; Pas d’effet visible. Et la même chose est vraie pour la France et l’Espagne&lt;/p&gt;
+
+&lt;p&gt;Pourquoi? Parce que le virus est trop contagieux. Quand vous mettez en quarantaine une seule région, vous pensiez qu’il n’y avait pas de gens contaminés en dehors de cette région, ou en petit nombre. Mais vous avez tort. Il y a déjà 10x plus de gens contaminés, sans aucun symptôme **EN DEHORS **de la région en quarantaine. Votre quarantaine régionale / proportionnelle n’a aucun effet mesurable.&lt;/p&gt;
+
+&lt;p&gt;Regardez le graphique. Réfléchisez-y. Voyez-vous la moindre amélioration après les quarantaines locales ? Voyez-vous la moindre amélioration en France à un moment quelconque ?&lt;/p&gt;
+
+&lt;p&gt;La &lt;strong&gt;quarantaine&lt;/strong&gt; &lt;strong&gt;totale&lt;/strong&gt; pour &lt;strong&gt;l’Italie&lt;/strong&gt; est maintenant &lt;strong&gt;effective&lt;/strong&gt;. Mais cela ne se verra &lt;strong&gt;pas avant un moment sur ce graphique&lt;/strong&gt;, à cause du délai dont nous avons parlé. &lt;strong&gt;Il faudra donc que la population soit patiente, la situation s’améliorera, mais cela ne sera pas visible avant quelques semaines.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;**Il est illusoire de dire aux gens de ne pas aller travailler s’ils ne sont pas malades. Vous pouvez être porteur sain du virus sans jamais le savoir. **D’autant plus qu’il est impossible de se faire tester sans symptôme.&lt;/p&gt;
+
+&lt;h3 id=&quot;mais-mon-pays-a-2-foix-plus-de-lits-en-réanimation-quen-italie&quot;&gt;Mais mon pays a 2 foix plus de lits en réanimation qu’en Italie.&lt;/h3&gt;
+
+&lt;p&gt;C’est bien. Votre pays résistera deux jours de plus. C’est ainsi que fonctionne une épidémie:&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;2 jours de plus, 2 fois plus d’infectés, 2 fois plus de patients en réanimation, et 2 fois plus de morts.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Seule une quarantaine stricte pourra amener une amélioration et le fameux “ralentissement” recherché pour que les services de santé puissent gérer la charge de nouveaux patients.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;Les autres mesures se sont montrées inefficaces, non pas parce qu’elles ont été mal menées, j’ai toute confiance par exemple dans les enquêtes épidémiologiques, mais parce que le &lt;strong&gt;virus est plus rapide que nous&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Si nous agissons trop tard, nos hôpitaux seront **&lt;a href=&quot;https://www.theguardian.com/world/2020/mar/09/italian-hospitals-short-beds-coronavirus-death-toll-jumps&quot;&gt;**submergés**&lt;/a&gt;&lt;/strong&gt;, quelque soit le nombre de lits que nous avons.** Et il déjà trop tard pour un bon nombre de pays occidentaux pour éviter d’atteindre cette capacité maximale.&lt;/p&gt;
+
+&lt;p&gt;La raison ? Le virus est trop contagieux. Le pic sera naturellement bien trop haut si nous attendons, avec une progression trop rapide.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/mdm/1*2dzy7wKfCGHqaR6eWPV6ug.png&quot; alt=&quot;&quot; /&gt;### Que puis-je faire ?&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Demandez à vos autorités locales&lt;/strong&gt; d’agir maintenant, et de faire respecter une &lt;strong&gt;quarantaine stricte.&lt;/strong&gt; Pas une quarantaine où les gens peuvent se rendre au travail, et évitent d’aller au restaurant après 18h.&lt;/p&gt;
+
+&lt;p&gt;La Chine a mis en quarantaine Hubei lorsqu’il y avait 50 morts à peine. Leur bilan final est de 3000 morts. Et leur quarantaine était des plus strictes.&lt;/p&gt;
+
+&lt;p&gt;Rappelez-vous les images d’une cité déserte. Pensez-vous que votre pays s’en &lt;strong&gt;sortira mieux avec une quarantaine à moitié respectée **? Vous avez tort. **Si votre pays a plus de 50 morts aujourd’hui, il aura plus de 3000 morts à la fin, c’est presque une certitude.&lt;/strong&gt; Et il y a déjà 10–100x plus de cas invisibles dans votre pays que ceux qui sont détectés.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Une quarantaine stricte. Tout le monde reste à la maison. Pour tous les pays contaminés. Pour un mois. En aidant financièrement les personnes qui ne peuvent pas se permettre de ne pas aller au travail. En aidant les personnes âgées qui sont à la maison en leur fournissant de la nourriture et en leur évitant tout contact. Et l’épidémie sera en grande partie contenue, ou presque. C’est notre meilleure chance.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;L’alternative est de prendre des demi-mesures, ou des mesures désynchronisées d’un pays à l’autre, qui chacun recontaminerait les autres, et qui ferait durer la pandémie des mois.&lt;/p&gt;
+
+&lt;p&gt;Cela ne serait pas bon pour notre économie.&lt;/p&gt;
+
+&lt;h3 id=&quot;et-cela-tuerait-un-grand-nombre-de-nos-aînés&quot;&gt;&lt;strong&gt;Et cela tuerait un grand nombre de nos aînés.&lt;/strong&gt;&lt;/h3&gt;
+
+</description>
+        <pubDate>Thu, 12 Mar 2020 00:00:00 +0100</pubDate>
+        <link>http://localhost:4000/comment-arreter-le-coronavirus/</link>
+        <guid isPermaLink="true">http://localhost:4000/comment-arreter-le-coronavirus/</guid>
+        
+        <category>covid19</category>
+        
+        <category>science</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>How can we contain the coronavirus?</title>
+        <description>&lt;h4 id=&quot;tldr-strict-quarantine-no-other-measure-will-have-an-effect&quot;&gt;TLDR: strict quarantine. No other measure will have an effect.&lt;/h4&gt;
+
+&lt;h4 id=&quot;is-it-deadly&quot;&gt;Is it deadly?&lt;/h4&gt;
+
+&lt;p&gt;Yes, for the elderly. You can consider it to be something like &lt;strong&gt;10x deadlier than the flu&lt;/strong&gt; for the elderly:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;3.6% for 60–69&lt;/li&gt;
+  &lt;li&gt;8.0% for 70–79&lt;/li&gt;
+  &lt;li&gt;22% for 80+
+(&lt;a href=&quot;https://www.worldometers.info/coronavirus/coronavirus-age-sex-demographics/&quot;&gt;source&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;So, yes, you are not taking precautions for yourself, but** for your parents and for your grandparents.**&lt;/p&gt;
+
+&lt;h4 id=&quot;is-it-more-contagious-than-the-flu&quot;&gt;Is it more contagious than the flu?&lt;/h4&gt;
+
+&lt;p&gt;It’s &lt;strong&gt;very&lt;/strong&gt; &lt;strong&gt;contagious&lt;/strong&gt;. Much more than the flu.&lt;/p&gt;
+
+&lt;p&gt;The number of people that are currently &lt;strong&gt;dying in Italy is doubling every 2.2 days&lt;/strong&gt;. Yes, you read that correctly. In one week, the death count multiplies roughly by 9. As well as the next week. Check out Italy for yourself: (all data from this post are from &lt;a href=&quot;https://www.ecdc.europa.eu/&quot;&gt;ECDC&lt;/a&gt; ):&lt;/p&gt;
+
+&lt;p&gt;Tuesday, Feb 25 : 6&lt;br /&gt;
+Tuesday, Mar 03 : 52 (x 8.6)&lt;br /&gt;
+Tuesday, Mar 10 : 464 (x 8.9)The only explanation for this is that the** coronavirus is propagating at a very fast pace.** It would be interesting to know why, and how, but you don’t really need to.** The numbers are: it’s terribly contagious.**&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Do not assume anything about what is safe. Avoid contact, period.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;https://www.news.com.au/lifestyle/health/health-problems/how-coronavirus-spreads-twice-as-far-on-trains-buses-public-transport/news-story/938b067e72449cd536c1b2d2d0f53070&quot;&gt;Public transportation and all non-necessary activities should be immediately stopped.&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;You need a single graph to understand this.&lt;/p&gt;
+
+&lt;h4 id=&quot;the-graph&quot;&gt;The graph&lt;/h4&gt;
+
+&lt;p&gt;Here is the count of deaths for a few countries, in a somewhat special chart that we’ll explain below.&lt;/p&gt;
+
+&lt;p&gt;(&lt;a href=&quot;https://github.com/madlag/coronavirus_study/blob/master/notebooks/Coronavirus_by_country.ipynb&quot;&gt;source code here&lt;/a&gt;, it will be updated each day)&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/mdm/1*8rsbSctG7hIByPTWBfjrTQ.png&quot; alt=&quot;&quot; /&gt;For those that are not familiar with maths, don’t worry, we’ll keep it simple.&lt;/p&gt;
+
+&lt;p&gt;The vertical axis is logarithmic. That’s a big word to say that each time you go up one unit, the value is multiplied by 10. Look on the left side: 10⁰ means 1, 10¹ means 10, 10² means 100, 10³ means 1000, etc.&lt;/p&gt;
+
+&lt;p&gt;We are using it because on such a chart, &lt;strong&gt;an epidemic should initially look like a straight line&lt;/strong&gt;. After some &lt;strong&gt;precautions&lt;/strong&gt; are taken, the line &lt;strong&gt;should curve downwards&lt;/strong&gt; (see the China curve for an example).&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;This dotted line represents the rate we talked about: doubling every 2.2 days.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h4 id=&quot;what-can-we-say-about-italy&quot;&gt;What can we say about Italy?&lt;/h4&gt;
+
+&lt;p&gt;The death count in &lt;strong&gt;Italy **is&lt;/strong&gt; exactly following the dotted line.**&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;No bending. No sign of improvement.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;That being said, it’s a death count, so it will be the last thing to improve, as there is some lag between getting ill and then dying, which is somewhere between one and three weeks.&lt;/p&gt;
+
+&lt;p&gt;So maybe things are improving right now. But for the same reason (lag) the current trend of deaths will probably go on for one to three weeks. &lt;strong&gt;That means 9x, 81x, or more deaths than now.&lt;/strong&gt; And we have already surpassed 600 deaths in that single country.&lt;/p&gt;
+
+&lt;h4 id=&quot;but-italy-made-mistakes-initially-it-wont-happen-to-my-country&quot;&gt;But Italy made mistakes initially, it won’t happen to my country&lt;/h4&gt;
+
+&lt;p&gt;&lt;strong&gt;Implausible.&lt;/strong&gt; As you can see on the graph, the** exact same trend is observed in France and Spain**, with a delay of 9 days. The only countries that *seem *to fare better now are:&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Much better:&lt;/strong&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;China and South Korea: they did it differently, but it worked in the end&lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Hong Kong, Taïwan: they avoided it almost completely.
+&lt;strong&gt;Only &lt;em&gt;slightly&lt;/em&gt; better:&lt;/strong&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;Germany, but Germany seems to not report cases with co-morbidities&lt;/li&gt;
+  &lt;li&gt;USA, but when checking the “cases” I realized that cases are growing at the 2.2 days doubling rate, so it’s implausible that on another side deaths are not growing at the same rate.&lt;/li&gt;
+  &lt;li&gt;Iran (same remark)
+    &lt;h4 id=&quot;but-taking-soft-measures-is-already-slowing-down-the-spread&quot;&gt;But taking soft measures is already slowing down the spread.&lt;/h4&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;strong&gt;Wrong&lt;/strong&gt;. Look at the graph. Italy took some serious measures after an initial delay. The curve is still a straight line. No visible effect. And the same is true for France or Spain.&lt;/p&gt;
+
+&lt;p&gt;Why? Because it’s so &lt;strong&gt;contagious&lt;/strong&gt;. When you are locking down a region, you think that there were contaminated people only in this region. You’re wrong. There are already 10x (or more) people contaminated, without any symptoms, &lt;strong&gt;OUTSIDE&lt;/strong&gt; the locked-down region. &lt;strong&gt;So your regional/proportional lockdown has no measurable effect.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;See the graph. Think about it. Do you see any improvement in Italy after regional lockdowns? Do you see any improvement in France at any point?&lt;/p&gt;
+
+&lt;p&gt;Right now the lockdown is effective for the full country of Italy, but it won’t show on the graph for some time, as it takes some time to fall ill. &lt;strong&gt;Thus people will have to be patient, improvement will come, but it won’t be visible until a few weeks.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h4 id=&quot;but-my-countrys-hospitals-have-2x-the-number-of-icu-beds-italy-has&quot;&gt;But my country’s hospitals have 2x the number of ICU beds Italy has.&lt;/h4&gt;
+
+&lt;p&gt;Fine. Your country will resist 2 days more. That’s the nature of an epidemic:&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;2 days more, twice the infected, twice the ICU patients, twice the deaths.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;Only when the lockdown is in effect you will see an improvement on this.&lt;/p&gt;
+
+&lt;p&gt;If you act too late, your hospitals will be &lt;a href=&quot;https://www.theguardian.com/world/2020/mar/09/italian-hospitals-short-beds-coronavirus-death-toll-jumps&quot;&gt;overwhelmed&lt;/a&gt;, no matter the number of beds you have. &lt;strong&gt;And it’s already too late for western countries to avoid reaching hospitals’ full capacity.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;The reason? The virus is way too contagious. So the spike will naturally be ‘peaky’.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/mdm/1*2dzy7wKfCGHqaR6eWPV6ug.png&quot; alt=&quot;&quot; /&gt;#### What can I do?&lt;/p&gt;
+
+&lt;p&gt;Ask for your local authority to act now, and enforce a &lt;strong&gt;total lockdown&lt;/strong&gt;. This is not something where people are going to work or just avoiding going out to eat in the evening.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;China locked down Hubei when there were only 50 deaths or so.&lt;/strong&gt; They ended with 3000 deaths. And their lockdown was militarily enforced. Recall the images of a deserted city. Do you think your country will fare better with a partially enforced lock-down? You are wrong. **If your country has more than 50 deaths now, you will have more than 3000 deaths in the end. **There are already 10–100x more cases that are just invisible in your country.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;A FULL lockdown. Everybody staying at home. For all countries. For at least one month. Financially helping individuals who cannot afford not to work. Helping elderly people that are at home with providing them with food and avoiding all contact. With these measures this will soon be over, or almost. This is our best shot at stopping this.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;The alternative is to take half-measures, or desynchronized measures across countries, so we re-contaminate each other, and let the pandemic carry on for months.&lt;/p&gt;
+
+&lt;p&gt;It would not be good for our economy.&lt;/p&gt;
+
+&lt;h4 id=&quot;and-it-would-kill-a-lot-of-our-elders&quot;&gt;And it would kill a lot of our elders.&lt;/h4&gt;
+
+&lt;p&gt;Thanks to Meg Wilmore for the proofreading.&lt;/p&gt;
+
+</description>
+        <pubDate>Wed, 11 Mar 2020 00:00:00 +0100</pubDate>
+        <link>http://localhost:4000/how-can-we-contain-the-coronavirus/</link>
+        <guid isPermaLink="true">http://localhost:4000/how-can-we-contain-the-coronavirus/</guid>
+        
+        <category>covid19</category>
+        
+        <category>science</category>
+        
+        
+      </item>
+    
+      <item>
+        <title>Is the future of Neural Networks Sparse? An Introduction (1/N)</title>
+        <description>&lt;h4 id=&quot;from-principles-to-real-world-library-support&quot;&gt;From principles to real-world library support.&lt;/h4&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/mdm/1*7e9p9imPoRBYh5WYF3FFrQ.png&quot; alt=&quot;&quot; /&gt;TLDR: Yes#### &lt;strong&gt;Hi, I am François Lagunas.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;I am doing Machine Learning research, and I have been working for the last months on using sparse matrices, especially in Transformers. The recent &lt;a href=&quot;https://openai.com/blog/openai-pytorch/&quot;&gt;&lt;strong&gt;announcement&lt;/strong&gt;&lt;/a&gt; that &lt;strong&gt;OpenAI&lt;/strong&gt; is porting its &lt;a href=&quot;https://openai.com/blog/block-sparse-gpu-kernels/&quot;&gt;&lt;strong&gt;block sparse toolbox&lt;/strong&gt;&lt;/a&gt; in &lt;strong&gt;PyTorch&lt;/strong&gt; is really big news:&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;“We are in the process of writing PyTorch bindings for our highly-optimized blocksparse kernels, and will open-source those bindings in upcoming months”I was talking about it with the outstanding &lt;a href=&quot;https://huggingface.co/&quot;&gt;Hugging Face&lt;/a&gt; team, (I am one of their early investors), and I wanted to share with you my excitement!&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;h3 id=&quot;what-is-a-sparse-matrix&quot;&gt;What is a Sparse Matrix?&lt;/h3&gt;
+
+&lt;p&gt;A &lt;strong&gt;&lt;em&gt;sparse&lt;/em&gt;&lt;/strong&gt; matrix is just a matrix with some zeros. Usually, a lot of them. So every place you are using a &lt;strong&gt;&lt;em&gt;dense matrix&lt;/em&gt;&lt;/strong&gt;, in a linear layer, for example, you could be using a sparse one.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/mdm/1*tf99LCAMrO70WAO4tkgFBw.png&quot; alt=&quot;&quot; /&gt;Matrices with increasing sparsityThe &lt;strong&gt;&lt;em&gt;sparsity&lt;/em&gt;&lt;/strong&gt; of the matrix is the fraction of zeros against the size of the matrix&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;The pros?&lt;/strong&gt; If you have a lot of zeros, you don’t have to compute some multiplications, and you don’t have to store them. So you &lt;strong&gt;&lt;em&gt;may&lt;/em&gt;&lt;/strong&gt; gain on size and speed, for training and inference (more on this today).&lt;/p&gt;
+
+&lt;p&gt;**The cons? **Of course, having all these zeros will probably have an impact on network accuracy/performance. But to what extent? You may be surprised.&lt;/p&gt;
+
+&lt;h3 id=&quot;where-are-they-from&quot;&gt;Where are they from?&lt;/h3&gt;
+
+&lt;p&gt;The first researchers/engineers to use sparse matrices were &lt;a href=&quot;https://en.wikipedia.org/wiki/Finite_element_method&quot;&gt;Finite Elements&lt;/a&gt; users.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/mdm/1*IvRIZEjC7kgUBuozUFlSng.png&quot; alt=&quot;&quot; /&gt;A 2D mesh (roof of Omni Coliseum, Atlanta) and its finite element matrix (&lt;a href=&quot;https://www.cise.ufl.edu/research/sparse/matrices/HB/bcsstk14.html&quot;&gt;source&lt;/a&gt;).When you have to deal with large physical simulations, you get a large graph of interconnected vertices.&lt;/p&gt;
+
+&lt;p&gt;Each vertex is a point of your system, and each edge connects two vertices. That means that these &lt;strong&gt;two points&lt;/strong&gt; will have some &lt;strong&gt;influence&lt;/strong&gt; on each other in the model. And so there is a &lt;strong&gt;non-zero&lt;/strong&gt; value in the matrix that describes the graph.&lt;/p&gt;
+
+&lt;p&gt;This last sentence sums it up: you need non-zero values in the matrix when two dimensions are interacting in some way.&lt;/p&gt;
+
+&lt;p&gt;**Now getting back to ML, you should ask yourself the same question: are all the dimensions of my input vector interacting with all the others? **Usually not. So going sparse maybe useful.&lt;/p&gt;
+
+&lt;p&gt;We have actually a very good, and famous, example of a successful trip to sparse-land: &lt;strong&gt;convolutional layers&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/mdm/1*3WLh11vam1ktq7kWJ9aKpg.jpeg&quot; alt=&quot;&quot; /&gt;Learned convolutional filters. From &lt;a href=&quot;http://cs231n.github.io/convolutional-networks/&quot;&gt;http://cs231n.github.io/convolutional-networks/&lt;/a&gt;Convolutional layers are a smart and efficient way to implement a sparse transformation on an input tensor.&lt;/p&gt;
+
+&lt;p&gt;When processing images, it comes down to two things:&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Sparsity&lt;/strong&gt;: the transformation is local → each output pixel should depend on a few neighboring input pixels.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Invariance&lt;/strong&gt;: the transformation does not depend on the position in the image&lt;/p&gt;
+
+&lt;p&gt;Then you just add the constraint that the transformation is linear: if you were to represent this transformation, you would get a HUGE matrix with only a few non-zeros. But of course, the right way to do this is to do a multiplication of the input tensor with a small set of small matrices (each square in the image before).&lt;/p&gt;
+
+&lt;p&gt;The importance of convolutions in today’s ML success is obvious. But you can see that &lt;strong&gt;finding a clever way to make things sparse sounds like a good recipe to save time and space.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;where-are-they-useful&quot;&gt;Where are they useful?&lt;/h3&gt;
+
+&lt;p&gt;Convolutions are already an efficient form of sparsity, so you could try to make them &lt;a href=&quot;https://arxiv.org/abs/1902.05967&quot;&gt;even&lt;/a&gt; more &lt;a href=&quot;http://arxiv.org/abs/1907.04840&quot;&gt;sparse&lt;/a&gt;, but some other networks contain much larger matrices that may benefit from sparsity: Transformers.&lt;/p&gt;
+
+&lt;p&gt;And those are getting bigger and bigger. We have greatly exceeded the 1 billion parameters in 2019, and it’s not stopping here. The cost to train and to use those networks is getting unpractical, so every method to reduce their size will be welcome.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/mdm/0*m3oTlwLmwuXuBCVg.jpg&quot; alt=&quot;&quot; /&gt;From &lt;a href=&quot;https://devblogs.nvidia.com/training-bert-with-gpus/&quot;&gt;https://devblogs.nvidia.com/training-bert-with-gpus/&lt;/a&gt;### Why the OpenAI announcement is so important?&lt;/p&gt;
+
+&lt;p&gt;So, if everything is fine in sparse-land, we should all be trying sparse matrices, shouldn’t we?&lt;/p&gt;
+
+&lt;p&gt;Yes. But there is this stupid thing called &lt;strong&gt;implementation&lt;/strong&gt;. It’s easy to see the theoretical improvements we could get with sparse compute. But the support in libraries is quite … sparse.&lt;/p&gt;
+
+&lt;p&gt;PyTorch &lt;a href=&quot;https://github.com/soumith&quot;&gt;developers&lt;/a&gt;, for example, have done a &lt;strong&gt;significant&lt;/strong&gt; &lt;strong&gt;effort&lt;/strong&gt; to support sparse compute. But there is still a big gap in performance between dense and sparse matrices operations, which defeats the whole purpose of using them. Even memory usage is quite large: sparsity has to be more than 80% to save some room on sparse matrices (more on that in my next post). Even basic serialization was broken before version 1.4. The reason is that the underlying libraries (for example cuSPARSE) are not doing a great job because the problem is ill-suited to the way GPU works.&lt;/p&gt;
+
+&lt;p&gt;So the &lt;strong&gt;OpenAI&lt;/strong&gt; &lt;strong&gt;announcement&lt;/strong&gt; on their block sparse tools is &lt;strong&gt;very&lt;/strong&gt; &lt;strong&gt;good&lt;/strong&gt; &lt;strong&gt;news&lt;/strong&gt; for those who want to use sparse ops without sacrificing training speed (and it looks like some &lt;a href=&quot;https://github.com/openai/blocksparse/issues/2&quot;&gt;people&lt;/a&gt; have been waiting for some time now). And we are not talking about a few percents.&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;“Our kernels typically performed &lt;strong&gt;one or two orders of magnitude faster&lt;/strong&gt; in terms of GFLOPS.”&lt;img src=&quot;/assets/images/mdm/1*qXMoK7emiT7J6CA_3O29_A.png&quot; alt=&quot;&quot; /&gt;From OpenAI &lt;a href=&quot;https://d4mucfpksywv.cloudfront.net/blocksparse/blocksparsepaper.pdf&quot;&gt;blocksparse paper&lt;/a&gt;(The worst thing is that the &lt;a href=&quot;https://d4mucfpksywv.cloudfront.net/blocksparse/blocksparsepaper.pdf&quot;&gt;paper&lt;/a&gt; concludes that cuBLAS is faster that cuSPARSE even with very sparse matrices. How sad.)&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;The magic keyword here is “&lt;strong&gt;block&lt;/strong&gt;”. &lt;strong&gt;It’s hard to implement general sparse matrice computations on GPUs in an efficient way&lt;/strong&gt;. But it gets much easier if you add a “reasonable” constraint on the form of the matrices: their non-zeros should be grouped in small fixed-size blocks, and that makes GPU processing much easier to parallelize efficiently. Typically 8x8, 16x16 or 32x32 blocks, 16x16 already giving a very good performance, with 32x32 giving a slightly better one.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/mdm/1*rHFMCfJ8Td-vhJi0e0zAQw.png&quot; alt=&quot;&quot; /&gt;A 8-block-sparse matriceOf course, the “block” constraint may be crippling some sparsification algorithms, or at least it would require some changes to take it into account.&lt;/p&gt;
+
+&lt;p&gt;But at least we can play with large high sparsity matrices, and the block constraint may not be a big issue: if you think about it, it means that there is &lt;strong&gt;some locality in the dimensions&lt;/strong&gt;, and that sounds a quite reasonable constraint. That’s the same reason band matrices have been useful in the past (finite difference, finite elements), and it was a much stronger constraint.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/mdm/1*zknKSiBQpsppvjDJFIFbqw.png&quot; alt=&quot;&quot; /&gt;Band matrix### Conclusion&lt;/p&gt;
+
+&lt;p&gt;I hope I have convinced you that 2020 will be the sparse network year (it already has two zeros, that’s a sign).&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Next time **for those who are curious about what happens when they are using some CUDA based PyTorch code, we’ll dig a bit deeper in **GPU internals&lt;/strong&gt;, (and we will understand** why block sparse code is outrunning sparse code by a large margin**).&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;This article series will continue on the different techniques that have been proposed to make sparse networks, and what are the potential long term benefits.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h4 id=&quot;more-reading&quot;&gt;More reading&lt;/h4&gt;
+
+&lt;p&gt;First, here is a &lt;a href=&quot;https://towardsdatascience.com/sparse-matrices-in-pytorch-part-2-gpus-fd9cc0725b71&quot;&gt;&lt;strong&gt;study&lt;/strong&gt;&lt;/a&gt;** of PyTorch sparse performance.**&lt;/p&gt;
+
+&lt;p&gt;If you want to have a very detailed review of &lt;strong&gt;different complementary approaches to network size reduction&lt;/strong&gt;, and not just about sparse ones, you should definitely read &lt;a href=&quot;http://mitchgordon.me/machine/learning/2020/01/13/do-we-really-need-model-compression.html&quot;&gt;this article&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;And if you want to &lt;strong&gt;create illustrations like the header of this blog post&lt;/strong&gt;, you will find the code I used on my &lt;a href=&quot;https://github.com/madlag/medium_posts/tree/master/sparse_matrices_1&quot;&gt;&lt;strong&gt;github&lt;/strong&gt;&lt;/a&gt;.&lt;/p&gt;
+
+</description>
+        <pubDate>Tue, 04 Feb 2020 00:00:00 +0100</pubDate>
+        <link>http://localhost:4000/is-the-future-of-neural-networks-sparse-an-introduction-1-n/</link>
+        <guid isPermaLink="true">http://localhost:4000/is-the-future-of-neural-networks-sparse-an-introduction-1-n/</guid>
+        
+        <category>AI</category>
+        
+        <category>NLP</category>
+        
+        
+      </item>
+    
+  </channel>
+</rss>
