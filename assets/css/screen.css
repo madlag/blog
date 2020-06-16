@@ -352,9 +352,14 @@ span.post-read-more a:hover {
 
 .mainheading h1.sitetitle {
     font-family: Merriweather;
-    font-style: bolder;
+    font-weight: bolder;
 }
 
+@media screen and (max-width: 400px) {
+  .mainheading h1.sitetitle {
+      font-size: 9.5vw;
+  }
+}
 
 .mainheading h1.posttitle {
     font-weight: 700;
