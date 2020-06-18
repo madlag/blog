@@ -1,12 +1,13 @@
 ---
 layout:	post
-title:	"Covid19 : raisonner l'incertain (1/N)"
+title:	"Covid19: Raison et incertitude"
 date:	2020-06-16
-description: "Mars 2020: comment pouvions-nous prévoir ?"
+description: "Partie 1 : comment pouvions-nous prévoir ?"
 author: francois
 tags: [ covid19, science]
 categories: []
 image: assets/images/posts/coronavirus1/coronavirus_1_cover.jpg
+featured: true
 ---
 
 #### Introduction

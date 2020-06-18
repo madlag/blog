@@ -4,7 +4,6 @@ date:	2020-02-04
 title:	"Is the future of Neural Networks Sparse? An Introduction (1/N)"
 description: "From principles to real-world library support."
 author: francois
-featured: true
 tags: [ AI, NLP]
 categories: []
 image: assets/images/posts/sparse1/sparse_1_cover.png
