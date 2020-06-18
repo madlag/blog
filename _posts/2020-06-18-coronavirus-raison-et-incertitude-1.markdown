@@ -79,6 +79,6 @@ Les **modèles sont évidemment utiles ensuite pour faire des prévisions préci
 
 **Mais il est aussi facile de tenir des raisonnements complètement erronés**, en ignorant sciemment ou non certaines données ou certains aspects du problème (cela sera l'objet d'un autre article ultérieur probablement assez long...).
 
-Le prochain volet lui portera sur un sujet nettement plus complexe: **maintenant que l'épidémie est maîtrisée dans certains pays, que se passera-t'il ensuite ?** En particulier, est-ce qu'une deuxième vague est à exclure, ou est-elle possible dans l'absolu ?
+Le prochain volet lui portera sur un sujet nettement plus complexe: **maintenant que l'épidémie est maîtrisée dans certains pays, que se passera-t-il ensuite ?** En particulier, est-ce qu'une deuxième vague est à exclure, ou est-elle possible dans l'absolu ?
 
  
