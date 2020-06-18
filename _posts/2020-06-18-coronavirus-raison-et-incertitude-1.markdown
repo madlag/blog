@@ -69,7 +69,7 @@ Ceci était possible car **nous avions la "chance" début mars d'avoir des exemp
 
 Regarder simplement ce qui s'est passé dans des circonstances aussi similaires que possible permet déjà de se faire une idée, si le phénomène n'est pas trop complexe (et en l'occurrence l'évolution d'une épidémie naissante suit une loi assez simple).
 
-Mais **nous avons malheureusement cherché toutes les différences possibles pour conclure que cela se passerait différemment en France**, en occultant l'essentiel : ces pays sont très similaires au notre, surtout si on considère l'Italie.
+Mais **nous avons malheureusement cherché toutes les différences possibles pour arriver à conclure que cela se passerait différemment en France**, en occultant l'essentiel : **ces pays sont très similaires au nôtre, surtout si on considère l'Italie**.
 
 
 ####  Conclusion
