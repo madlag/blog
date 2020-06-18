@@ -42,7 +42,7 @@ Pays | Confinement | Décès confinement | Décès (15 juin)| "Prévision"
 -|-|-|-|-
 Italie          | 10 mars | 631  | 34371 | 75000
 France          | 16 mars | 148  | 29436 | 17000
-Austria         | 16 mars |  3   | 677   | 360
+Autriche        | 16 mars |  3   | 677   | 360
 Allemagne       | 22 mars | 55   | 8791  | 6500
 Grande-Bretagne | 23 mars | 508  | 41736 | 60000
 
