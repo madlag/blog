@@ -165,6 +165,31 @@ figcaption {
     text-align: center;
 }
 
+table.border_table {
+    border: 1px black solid;
+    width:100%;
+    margin-bottom:1em;
+}
+
+table.border_table tr {
+    border: 1px black solid;
+}
+
+table.border_table tr td {
+    border: 1px black solid;
+    padding:4px;
+}
+
+table.border_table thead tr th {
+    border: 1px black solid;
+    background: lightgrey;
+    padding:4px;
+}
+
+strong {
+    font-weight: 700;
+}
+
 .listfeaturedtag .card,
 .card-footer {
     border: 0;
@@ -396,16 +421,21 @@ span.post-read-more a:hover {
     font-size: 1.1rem;
     line-height: 1.84;
     color: rgba(0, 0, 0, .8);
-}
+    }
 
 blockquote {
     border-left: 4px solid #00ab6b;
     padding: 0 20px;
     font-style: italic;
-    color: rgba(0, 0, 0, .5);
+    color: rgba(0, 171, 107, 1.0);
+    font-weight: 600;
 }
 
-.article-post p,
+.article-post p{
+    margin: 0 0 1.5rem 0;
+    font-weight: 300;
+}
+
 .article-post blockquote {
     margin: 0 0 1.5rem 0;
 }
