@@ -31,7 +31,15 @@ plugins:
   - jekyll-feed
   - jekyll-seo-tag
   - jekyll-archives
-    
+
+social:
+  name: François Lagunas
+  links:
+    - https://twitter.com/madlag
+    - https://www.facebook.com/francois.lagunas
+    - https://www.linkedin.com/in/lagunas/
+    - https://github.com/madlag
+
 # Archives
 jekyll-archives:
   enabled:

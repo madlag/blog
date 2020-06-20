@@ -43,7 +43,7 @@ That’s because sequential performance is mostly limited by **operating** **fre
 * the amount of **heat** that is created by the chips, a function of voltage and frequency. First, a **transistor** emits heat when **changing state**, so proportionally to frequency. Second, **the higher the frequency, the higher the voltage** you need. So in the end **emitted heat is more than linear in the frequency**, not something ideal.
 
 <figure class="figright">
-<img alt="Chip layout" src="/assets/images/posts/sparse2/Microchip.png">
+<img alt="Chip layout" src="/assets/images/posts/sparse2/Microchip.jpg">
 <figcaption>From <a href="https://youtu.be/Knd-U-avG0c?t=109">https://youtu.be/Knd-U-avG0c</a></figcaption>
 </figure>
 
@@ -71,7 +71,7 @@ If you have a lot of computing power available, you have to feed it with data. M
 
 
 <figure class="figleft">
-<img alt="Traffic jam" src="/assets/images/posts/sparse2/tan-kaninthanond-VEVfbQtyB8s-unsplash-cut.png">
+<img alt="Traffic jam" src="/assets/images/posts/sparse2/tan-kaninthanond-VEVfbQtyB8s-unsplash-cut.jpg">
 <figcaption>From <a href="https://unsplash.com/photos/VEVfbQtyB8s">https://unsplash.com/photos/VEVfbQtyB8s</a></figcaption>
 </figure>
 
