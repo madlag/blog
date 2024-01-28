@@ -6,8 +6,7 @@ description: "Partie 1 : comment pouvions-nous prévoir ?"
 author: francois
 tags: [ covid19, science]
 categories: []
-image: assets/images/posts/coronavirus1/coronavirus_1_cover.jpg
-featured: true
+image: assets/images/posts/coronavirus2/nasa-Q1p7bh3SHj8-unsplash.jpg
 ---
 
 #### Introduction

@@ -7,6 +7,7 @@ author: francois
 tags: [ AI, NLP]
 categories: []
 image: assets/images/posts/sparse1/sparse_1_cover.png
+featured: true
 ---
 
 <figure class="figcenter">

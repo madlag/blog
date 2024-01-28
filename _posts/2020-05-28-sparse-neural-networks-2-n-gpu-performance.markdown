@@ -4,10 +4,10 @@ title:	"Sparse Neural Networks (2/N): Understanding GPU Performance"
 date:	2020-05-28
 description: "NVIDIA Ampere A100 introduces fine-grained structured sparsity"
 author: francois
-featured: true
 tags: [ AI, NLP]
 categories: []
 image: assets/images/posts/sparse2/MicroChip.png
+featured: true
 ---
 
 Welcome back for this series on Sparse Neural Networks. In case you have not read our first introductory episode, [here it is](https://link.medium.com/In4bINyeO3).
