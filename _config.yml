@@ -1,9 +1,10 @@
 # Site
 # Using information from https://deepu.tech/static-site-generators-rundown-how-i-set-up-my-own-blog-with-jekyll/
-name: "Numbers ∩ Nature"
-title: "Numbers ∩ Nature"
+name: "Numbers ╳ Nature"
+title: "Numbers ╳ Nature"
 description: "A geek stance on AI, physics, and whatever catch my eye"
 logo: 'assets/images/logo.png'
+header: 'assets/images/header.png'
 favicon: 'assets/images/logo.png'
 #baseurl:
 #google_analytics: 'UA-46278016-1'
